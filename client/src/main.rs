@@ -12,8 +12,6 @@
 
 use std::env;
 use shared::{MyMessage};
-use bincode;
-use serde::{Serialize, Deserialize};
 use futures_util::{future, pin_mut, StreamExt};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio_tungstenite::{connect_async, tungstenite::protocol::Message};

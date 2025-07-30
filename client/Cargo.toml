@@ -1,0 +1,13 @@
+[package]
+name = "client"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+shared = {path = "../shared"}
+tokio = { version = "1", features = ["full"] }
+tokio-tungstenite = "0.27.0"
+futures-util = "0.3"
+futures-channel = "0.3"
+serde = "1.0.219"
+bincode = "1.3"

@@ -1,0 +1,7 @@
+[workspace]
+members = [
+    "ws-server",
+    "client",
+    "shared"       # optional, only if you want a shared crate
+, "wasm-client"]
+

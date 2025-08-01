@@ -1,0 +1,4 @@
+## Core latex/pdflatex auxiliary files:
+/build/*
+!build/main.pdf
+/svg-inkscape/*

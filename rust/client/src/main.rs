@@ -19,8 +19,7 @@ use tokio_tungstenite::{connect_async, tungstenite::protocol::Message};
 
 #[tokio::main]
 async fn main() {
-    let url =
-        env::args().nth(1).unwrap_or_else(|| panic!("this program requires at least one argument"));
+    let url = env::args().nth(1).unwrap_or_else(|| panic!("this program requires at least one argument"));
 
     let (send_to_server, receive_from_server) = futures_channel::mpsc::unbounded();
     tokio::spawn(read_stdin(send_to_server));

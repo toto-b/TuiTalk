@@ -1,11 +1,25 @@
-<script type="module">
-  import init, { WsClient } from './pkg/wasm_ws_client.js';
-  
-  async function run() {
-    await init(); // Initialize WASM
-    const client = new WsClient("ws://localhost:8080");
-    client.send_text("Hello from WASM!");
-  }
-  
-  run();
-</script>
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>WASM WebSocket Client</title>
+</head>
+<body style="background-color:darkgrey;">
+    <script type="module">
+        import init, { start } from './pkg/wasm_client.js';
+        
+        async function run() {
+            try {
+                await init();
+                await start().catch(e => {
+                    console.error("Connection failed:", e);
+                });
+            } catch (e) {
+                console.error("Initialization failed:", e);
+            }
+        }
+        
+        run();
+    </script>
+</body>
+</html>

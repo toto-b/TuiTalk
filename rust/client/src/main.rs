@@ -37,7 +37,7 @@ async fn send_example_messages(tx: UnboundedSender<TalkProtocol>) {
         message: "Hello server!".to_string(),
         action: None,
         room_id: 0,
-        unixtime: SystemTime::now(),
+        unixtime: 100,
     };
     tx.unbounded_send(msg1).unwrap();
 
@@ -46,7 +46,7 @@ async fn send_example_messages(tx: UnboundedSender<TalkProtocol>) {
         message: "I want to join room".to_string(),
         action: Some(ClientAction::Join),
         room_id: 42,
-        unixtime: SystemTime::now(),
+        unixtime: 100,
     };
     tx.unbounded_send(msg2).unwrap();
 

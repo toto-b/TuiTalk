@@ -1,24 +1,11 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <title>Rust WASM WebSocket Client</title>
-</head>
-<body>
-  <h1>Rust WASM WebSocket Client</h1>
-<input id="chat-input" type="text" placeholder="Enter your message">
-<button id="send-button">Send</button>
-
-  <script type="module">
-    import init from "./target-wasm/wasm_client.js"; // Path to wasm-bindgen generated JS
-
-    async function run() {
-      // Initialize the wasm module
-      await init();
-      start();
-    }
-
-    run();
-  </script>
-</body>
-</html>
+<script type="module">
+  import init, { WsClient } from './pkg/wasm_ws_client.js';
+  
+  async function run() {
+    await init(); // Initialize WASM
+    const client = new WsClient("ws://localhost:8080");
+    client.send_text("Hello from WASM!");
+  }
+  
+  run();
+</script>

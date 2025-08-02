@@ -22,10 +22,11 @@ use std::{
     env,
     io::Error as IoError,
     net::SocketAddr,
-    sync::{Arc, Mutex},
+    sync::{Arc, Mutex}, time::UNIX_EPOCH,
 };
+use chrono::{DateTime, Local};
 
-use shared::{MyMessage};
+use shared::{TalkProtocol};
 
 use futures_channel::mpsc::{unbounded, UnboundedSender};
 use futures_util::{future, pin_mut, stream::TryStreamExt, StreamExt};
@@ -52,8 +53,9 @@ pub async fn handle_connection(peer_map: PeerMap, raw_stream: TcpStream, addr: S
     let (outgoing, incoming) = ws_stream.split();
 
     let broadcast_incoming = incoming.try_for_each(|msg| {
-        let deserialize_msg: MyMessage = bincode::deserialize(&msg.clone().into_data()).unwrap();
-        println!("Received a message from ip={}: [{}]: {}", addr, deserialize_msg.username, deserialize_msg.text);
+        let deserialize_msg: TalkProtocol = bincode::deserialize(&msg.clone().into_data()).unwrap();
+        let dt_now_local: DateTime<Local> = deserialize_msg.unixtime.clone().into();
+        println!("Received a message from ip={}: [{}]: {} time:{}", addr, deserialize_msg.username, deserialize_msg.message, dt_now_local);
         let peers = peer_map.lock().unwrap();
 
         // We want to broadcast the message to everyone except ourselves.
@@ -61,7 +63,7 @@ pub async fn handle_connection(peer_map: PeerMap, raw_stream: TcpStream, addr: S
 
         for recp in broadcast_recipients {
             recp.unbounded_send(msg.clone()).unwrap(); // tx.send -> sending to all other future channels which are held by the other clients
-        }
+        }  
 
         future::ok(())
     });

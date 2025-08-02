@@ -1,5 +1,4 @@
 use serde::{Deserialize, Serialize};
-use std::time::SystemTime;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub enum ClientAction {
@@ -14,7 +13,7 @@ pub struct TalkProtocol {
     pub message: String,
     pub action: Option<ClientAction>,
     pub room_id: i32,
-    pub unixtime: SystemTime,
+    pub unixtime: u64,
 }
 
 impl TalkProtocol {
@@ -57,7 +56,7 @@ pub mod native {
         while let Some(msg) = rx.next().await {
             match bincode::serialize(&msg) {
                 Ok(bin) => {
-                    if let Err(e) = write.send(Message::binary(bin)).await {
+                    if let Err(e) = write.send(Message::Binary(bin)).await {
                         eprintln!("WebSocket send error: {:?}", e);
                         break;
                     }
@@ -96,82 +95,70 @@ pub mod native {
 
 //----------------------------------------------------------------------------------------------------WASM----------------------------------------------------------------------------------------------------
 
-#[cfg(target_arch = "wasm32")]
-mod wasm {
+pub mod wasm {
     use super::*;
-    use wasm_bindgen::prelude::*;
-    use web_sys::{WebSocket, BinaryType};
-    use js_sys::{Uint8Array, ArrayBuffer};
-    use std::time::{UNIX_EPOCH, Duration};
+    use gloo_net::websocket::{futures::WebSocket, Message as WsMessage};
+    use wasm_bindgen_futures::spawn_local;
+    use futures_util::{SinkExt, StreamExt};
+    use thiserror::Error;
 
-    #[wasm_bindgen]
-    pub struct WsClient {
-        ws: WebSocket,
-        _closures: Vec<Closure<dyn FnMut()>>,
+    #[derive(Error, Debug)]
+    pub enum WsError {
+        #[error("WebSocket connection failed: {0}")]
+        ConnectionFailed(String),
+        #[error("Send failed: {0}")]
+        SendFailed(String),
     }
 
-    #[wasm_bindgen]
-    #[derive(Clone)]
-    pub enum WasmClientAction {
-        Join,
-        Leave,
-        CreateRoom,
+    pub struct WsConnection {
+        ws_sender: futures_channel::mpsc::UnboundedSender<TalkProtocol>,
     }
 
-    #[wasm_bindgen]
-    #[derive(Clone)]
-    pub struct WasmTalkProtocol {
-        username: String,
-        message: String,
-        room_id: i32,
-        unixtime: f64,
-        #[wasm_bindgen(skip)]
-        action: Option<WasmClientAction>,
-    }
+    impl WsConnection {
+        pub async fn connect(
+            url: &str,
+            mut on_message: impl FnMut(TalkProtocol) + 'static,
+        ) -> Result<Self, WsError> {
+            let ws = WebSocket::open(url)
+                .map_err(|e| WsError::ConnectionFailed(e.to_string()))?;
 
-    #[wasm_bindgen]
-    impl WsClient {
-        #[wasm_bindgen(constructor)]
-        pub fn new(url: &str) -> Result<WsClient, JsValue> {
-            let ws = WebSocket::new(url)?;
-            ws.set_binary_type(BinaryType::Arraybuffer); // Fixed BinaryType usage
-            
-            let mut closures = vec![];
-            
-            let on_open = Closure::new(|| {
-                web_sys::console::log_1(&"Connected!".into());
+            let (mut write, mut read) = ws.split();
+            let (tx, mut rx) = futures_channel::mpsc::unbounded();
+
+            spawn_local(async move {
+                while let Some(msg) = rx.next().await {
+                    match bincode::serialize(&msg) {
+                        Ok(bin) => if let Err(e) = write.send(WsMessage::Bytes(bin)).await {
+                            log::error!("Send error: {:?}", e);
+                            break;
+                        },
+                        Err(e) => log::error!("Serialization error: {:?}", e),
+                    }
+                }
             });
-            ws.set_onopen(Some(on_open.as_ref().unchecked_ref()));
-            closures.push(on_open);
 
-            Ok(WsClient { ws, _closures: closures })
+            spawn_local(async move {
+                while let Some(msg) = read.next().await {
+                    if let Ok(WsMessage::Bytes(bin)) = msg {
+                        if let Ok(parsed) = TalkProtocol::deserialize(&bin) {
+                            on_message(parsed);
+                        }
+                    }
+                }
+            });
+
+            Ok(Self { ws_sender: tx })
         }
 
-        #[wasm_bindgen(js_name = sendProtocol)]
-        pub fn send_protocol(&self, protocol: &WasmTalkProtocol) -> Result<(), JsValue> {
-            let native_protocol = TalkProtocol {
-                username: protocol.username.clone(),
-                message: protocol.message.clone(),
-                action: protocol.action.as_ref().map(|a| match a {
-                    WasmClientAction::Join => ClientAction::Join,
-                    WasmClientAction::Leave => ClientAction::Leave,
-                    WasmClientAction::CreateRoom => ClientAction::CreateRoom,
-                }),
-                room_id: protocol.room_id,
-                unixtime: UNIX_EPOCH + Duration::from_secs_f64(protocol.unixtime),
-            };
-
-            let bytes = bincode::serialize(&native_protocol)
-                .map_err(|e| JsValue::from_str(&format!("Serialization error: {}", e)))?;
-
-            // Correct way to create Uint8Array from bytes
-            let array = Uint8Array::new_with_length(bytes.len() as u32);
-            array.copy_from(&bytes);
-            
-            self.ws.send_with_u8_array(&array.to_vec())
+        pub fn send(&self, msg: TalkProtocol) -> Result<(), WsError> {
+            self.ws_sender
+                .unbounded_send(msg)
+                .map_err(|e| WsError::SendFailed(e.to_string()))?;
+            Ok(())
         }
     }
 }
+
 #[cfg(target_arch = "wasm32")]
 pub use wasm::*; // Expose WASM API
 

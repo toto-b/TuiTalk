@@ -53,9 +53,40 @@ pub async fn handle_connection(peer_map: PeerMap, raw_stream: TcpStream, addr: S
     let (outgoing, incoming) = ws_stream.split();
 
     let broadcast_incoming = incoming.try_for_each(|msg| {
-        let deserialize_msg: TalkProtocol = bincode::deserialize(&msg.clone().into_data()).unwrap();
-        let dt_now_local: DateTime<Local> = deserialize_msg.unixtime.clone().into();
-        println!("Received a message from ip={}: [{}]: {} time:{}", addr, deserialize_msg.username, deserialize_msg.message, dt_now_local);
+        match msg {
+            Message::Text(_) => println!("Server has received Text"),
+            Message::Binary(_) => println!("Server has received Text"),
+            _ => println!("The Rest of Messages"),
+
+        }
+        let deserialize_msg: TalkProtocol = match bincode::deserialize(&msg.clone().into_data()) {
+            Ok(msg) => msg,
+            Err(e) => {
+                // Get the raw message data for inspection
+                let raw_data = msg.clone().into_data();
+
+                // Log detailed error information
+                eprintln!(
+                    "Failed to deserialize message from {}.\n\
+                        Error: {}\n\
+                        Error type: {}\n\
+                        Hex dump: {:02x?}",
+                    addr,
+                    e,
+                    raw_data.len(),
+                    &raw_data
+                );
+
+                // You can also log the string representation if it might be text
+                if let Ok(s) = String::from_utf8(raw_data.to_vec()) {
+                    eprintln!("Data as string: {:?}", s);
+                }
+
+                // Return or handle the error appropriately
+                return future::ok(());  // Skip this message but keep connection alive
+            }
+        };
+        println!("Received a message from ip={}: [{}]: {}", addr, deserialize_msg.username, deserialize_msg.message);
         let peers = peer_map.lock().unwrap();
 
         // We want to broadcast the message to everyone except ourselves.

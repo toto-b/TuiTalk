@@ -1,30 +1,10 @@
-//! A chat server that broadcasts a message to all connections.
-//!
-//! This is a simple line-based server which accepts WebSocket connections,
-//! reads lines from those connections, and broadcasts the lines to all other
-//! connected clients.
-//!
-//! You can test this out by running:
-//!
-//!     cargo run --example server 127.0.0.1:12345
-//!
-//! And then in another window run:
-//!
-//!     cargo run --example client ws://127.0.0.1:12345/
-//!
-//! You can run the second command in multiple windows and then chat between the
-//! two, seeing the messages from the other client as they're received. For all
-//! connected clients they'll all join the same room and see everyone else's
-//! messages.
-
 use std::{
     collections::HashMap,
     env,
     io::Error as IoError,
     net::SocketAddr,
-    sync::{Arc, Mutex}, time::UNIX_EPOCH,
+    sync::{Arc, Mutex},
 };
-use chrono::{DateTime, Local};
 
 use shared::{TalkProtocol};
 
@@ -46,7 +26,6 @@ pub async fn handle_connection(peer_map: PeerMap, raw_stream: TcpStream, addr: S
         .expect("Error during the websocket handshake occurred");
     println!("WebSocket connection established: {}", addr);
 
-    // Insert the write part of this peer to the peer map.
     let (tx, rx) = unbounded();
     peer_map.lock().unwrap().insert(addr, tx);
 
@@ -62,10 +41,8 @@ pub async fn handle_connection(peer_map: PeerMap, raw_stream: TcpStream, addr: S
         let deserialize_msg: TalkProtocol = match bincode::deserialize(&msg.clone().into_data()) {
             Ok(msg) => msg,
             Err(e) => {
-                // Get the raw message data for inspection
                 let raw_data = msg.clone().into_data();
 
-                // Log detailed error information
                 eprintln!(
                     "Failed to deserialize message from {}.\n\
                         Error: {}\n\
@@ -77,19 +54,16 @@ pub async fn handle_connection(peer_map: PeerMap, raw_stream: TcpStream, addr: S
                     &raw_data
                 );
 
-                // You can also log the string representation if it might be text
                 if let Ok(s) = String::from_utf8(raw_data.to_vec()) {
                     eprintln!("Data as string: {:?}", s);
                 }
 
-                // Return or handle the error appropriately
-                return future::ok(());  // Skip this message but keep connection alive
+                return future::ok(());
             }
         };
         println!("Received a message from ip={}: [{}]: {}", addr, deserialize_msg.username, deserialize_msg.message);
         let peers = peer_map.lock().unwrap();
 
-        // We want to broadcast the message to everyone except ourselves.
         let broadcast_recipients = peers.iter().filter(|(peer_addr, _)| peer_addr != &&addr).map(|(_, ws_sink)| ws_sink);
 
         for recp in broadcast_recipients {
@@ -114,12 +88,11 @@ pub async fn start_ws_server() -> Result<(), IoError> {
 
     let state = PeerMap::new(Mutex::new(HashMap::new()));
 
-    // Create the event loop and TCP listener we'll accept connections on.
     let try_socket = TcpListener::bind(&addr).await;
     let listener = try_socket.expect("Failed to bind");
+
     println!("Listening on: {}", addr);
 
-    // Let's spawn the handling of each connection in a separate task.
     while let Ok((stream, addr)) = listener.accept().await {
         tokio::spawn(handle_connection(state.clone(), stream, addr));
         let metrics = Handle::current().metrics();

@@ -16,7 +16,14 @@ console_log = "0.2"
 thiserror = "1.0"
 futures-channel = "0.3"
 futures-util = "0.3"
-web-sys = "0.3.77"
+web-sys = {version = "0.3.77", features = [
+    "Document",
+    "HtmlElement",
+    "HtmlInputElement",
+    "HtmlButtonElement",
+    "Window",
+    "console",
+]}
 console_error_panic_hook = "0.1.7"
 chrono = "0.4.41"
 instant = "0.1"

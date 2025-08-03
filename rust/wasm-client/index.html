@@ -9,14 +9,8 @@
         import init, { start } from './pkg/wasm_client.js';
         
         async function run() {
-            try {
                 await init();
-                await start().catch(e => {
-                    console.error("Connection failed:", e);
-                });
-            } catch (e) {
-                console.error("Initialization failed:", e);
-            }
+                await start();
         }
         
         run();

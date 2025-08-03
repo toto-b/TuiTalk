@@ -26,6 +26,7 @@
           rust-analyzer
           lld_18
           wasm-bindgen-cli
+          python3
         ];
       };
 

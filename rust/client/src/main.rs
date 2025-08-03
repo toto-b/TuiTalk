@@ -1,5 +1,4 @@
 use futures_channel::mpsc::{unbounded, UnboundedSender};
-use std::time::SystemTime;
 use tokio::signal;
 pub use shared::native::{connect, receiver_task, sender_task };
 use shared::{TalkProtocol, ClientAction};
@@ -8,13 +7,10 @@ use shared::{TalkProtocol, ClientAction};
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let url = "ws://localhost:8080".to_string();
 
-    // Create channel for sending messages
     let (tx, rx) = unbounded::<TalkProtocol>();
 
-    // Connect to WebSocket server
     let (write, read) = connect(url).await?; 
 
-    // Spawn sender task
     tokio::spawn(sender_task(rx, write));
 
 
@@ -34,7 +30,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 async fn send_example_messages(tx: UnboundedSender<TalkProtocol>) {
     let msg1 = TalkProtocol {
         username: "client".to_string(),
-        message: "Hello server!".to_string(),
+        message: "Hello server and others!".to_string(),
         action: None,
         room_id: 0,
         unixtime: 100,
@@ -49,5 +45,4 @@ async fn send_example_messages(tx: UnboundedSender<TalkProtocol>) {
         unixtime: 100,
     };
     tx.unbounded_send(msg2).unwrap();
-
 }

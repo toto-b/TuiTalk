@@ -23,6 +23,7 @@
           lld_18
           wasm-bindgen-cli
           python3
+          wasm-pack
         ];
       };
 

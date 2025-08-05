@@ -1,4 +1,8 @@
 use yew::prelude::*;
+use shared::wasm::WsConnection;
+use wasm_bindgen_futures::spawn_local;
+use std::rc::Rc;
+use std::cell::RefCell;
 
 #[function_component]
 fn App() -> Html {
@@ -14,6 +18,19 @@ fn App() -> Html {
             username.set(value);
         })
     };
+
+    // Assuming WsConnection is your WebSocket type
+    let con = Rc::new(RefCell::new(None)); // Create a shareable, mutable reference
+    // Clone the Rc for the closure
+    let con_clone = Rc::clone(&con);
+
+    spawn_local(async move {
+        let connection = WsConnection::connect("ws://localhost:8080").await;
+
+        // Store the connection in our shared reference
+        *con_clone.borrow_mut() = Some(connection);
+    });
+
 
     let on_input_message = {
         let message = message.clone();
@@ -40,12 +57,12 @@ fn App() -> Html {
             <input type="text" oninput={on_input_username} />
             <input type="text" oninput={on_input_message} />
             <button onclick={on_send}>
-            { "Click me!" }
-        </button>
+                { "Click me!" }
+            </button>
             <p>{ format!("Username: {}", *username) }</p>
             <p>{ format!("Message: {}", *message) }</p>
         </div>
-    }
+        }
 }
 
 fn main() {

@@ -1,60 +1,48 @@
-//! A simple example of hooking up stdin/stdout to a WebSocket stream.
-//!
-//! This example will connect to a server specified in the argument list and
-//! then forward all data read on stdin to the server, printing out all data
-//! received on stdout.
-//!
-//! Note that this is not currently optimized for performance, especially around
-//! buffer management. Rather it's intended to show an example of working with a
-//! client.
-//!
-//! You can use this example together with the `server` example.
-
-use std::env;
-use shared::{MyMessage};
-use futures_util::{future, pin_mut, StreamExt};
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tokio_tungstenite::{connect_async, tungstenite::protocol::Message};
-
+use futures_channel::mpsc::{unbounded, UnboundedSender};
+use tokio::signal;
+pub use shared::native::{connect, receiver_task, sender_task };
+use shared::{TalkProtocol, ClientAction};
 
 #[tokio::main]
-async fn main() {
-    let url =
-        env::args().nth(1).unwrap_or_else(|| panic!("this program requires at least one argument"));
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let url = "ws://localhost:8080".to_string();
 
-    let (send_to_server, receive_from_server) = futures_channel::mpsc::unbounded();
-    tokio::spawn(read_stdin(send_to_server));
+    let (tx, rx) = unbounded::<TalkProtocol>();
 
-    let (ws_stream, _) = connect_async(&url).await.expect("Failed to connect");
-    println!("WebSocket handshake has been successfully completed");
+    let (write, read) = connect(url).await?; 
 
-    let (write, read) = ws_stream.split();
+    tokio::spawn(sender_task(rx, write));
 
-    let stdin_to_ws = receive_from_server.map(Ok).forward(write);
-    let ws_to_stdout = {
-        read.for_each(|message| async {
-            let data = message.unwrap().into_data();
-            tokio::io::stdout().write_all(&data).await.unwrap();
-        })
-    };
 
-    pin_mut!(stdin_to_ws, ws_to_stdout);
-    future::select(stdin_to_ws, ws_to_stdout).await;
+    send_example_messages(tx.clone()).await;
+
+    tokio::spawn(receiver_task(read, |msg| {
+        println!("Received message: {:?}", msg);
+    }));
+
+    signal::ctrl_c().await?;
+    println!("Shutting down...");
+
+
+    Ok(())
 }
 
-// Our helper method which will read data from stdin and send it along the
-// sender provided.
-async fn read_stdin(tx: futures_channel::mpsc::UnboundedSender<Message>) {
-    let mut stdin = tokio::io::stdin();
-    loop {
-        let mut buf = vec![0; 1024];
-        let n = match stdin.read(&mut buf).await {
-            Err(_) | Ok(0) => break,
-            Ok(n) => n,
-        };
-        buf.truncate(n);
-        let msg = MyMessage {text: str::from_utf8(&buf).unwrap().to_string(), username: "RustName".into()};
-        let bin = bincode::serialize(&msg).unwrap();
-        tx.unbounded_send(Message::binary(bin)).unwrap();
-    }
+async fn send_example_messages(tx: UnboundedSender<TalkProtocol>) {
+    let msg1 = TalkProtocol {
+        username: "client".to_string(),
+        message: "Hello server and others!".to_string(),
+        action: None,
+        room_id: 0,
+        unixtime: 100,
+    };
+    tx.unbounded_send(msg1).unwrap();
+
+    let msg2 = TalkProtocol {
+        username: "client".to_string(),
+        message: "I want to join room".to_string(),
+        action: Some(ClientAction::Join),
+        room_id: 42,
+        unixtime: 100,
+    };
+    tx.unbounded_send(msg2).unwrap();
 }

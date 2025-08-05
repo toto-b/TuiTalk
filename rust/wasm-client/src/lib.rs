@@ -1,68 +1,67 @@
-use wasm_bindgen::JsCast;
-use wasm_bindgen::closure::Closure;
+use shared::{ClientAction, TalkProtocol, wasm::WsConnection};
 use wasm_bindgen::prelude::*;
-use web_sys::WebSocket;
-use web_sys::{CloseEvent, ErrorEvent}; // Needed for `dyn_into()` and `unchecked_ref()`
-
-use web_sys::{Event, HtmlElement, HtmlInputElement, window};
+use web_sys::{HtmlButtonElement, HtmlElement, HtmlInputElement};
+use std::rc::Rc;
 
 #[wasm_bindgen(start)]
-pub fn start() -> Result<(), JsValue> {
-    let ws = WebSocket::new("ws://localhost:12345")?;
+pub async fn start() -> Result<(), JsValue> {
+    console_error_panic_hook::set_once();
+    console_log::init_with_level(log::Level::Debug).unwrap();
 
-    // (WebSocket callbacks: onopen, onmessage, etc.) ...
-    // [snipped for brevity]
+    let document = web_sys::window().unwrap().document().unwrap();
+    let body = document.body().unwrap();
 
-    // Clone WebSocket so it can be used in the closure
-    let ws_clone = ws.clone();
+    let username_input: HtmlInputElement = document.create_element("input")?.dyn_into()?;
+    username_input.set_attribute("type", "text")?;
+    username_input.set_attribute("placeholder", "Username")?;
+    body.append_child(&username_input)?;
 
-    // Access window and document
-    let window = window().unwrap();
-    let document = window.document().unwrap();
+    let message_input: HtmlInputElement = document.create_element("input")?.dyn_into()?;
+    message_input.set_attribute("type", "text")?;
+    message_input.set_attribute("placeholder", "Message")?;
+    body.append_child(&message_input)?;
 
-    // Get input and button elements
-    let input = document
-        .get_element_by_id("chat-input")
-        .unwrap()
-        .dyn_into::<HtmlInputElement>()?;
-    let button = document
-        .get_element_by_id("send-button")
-        .unwrap()
-        .dyn_into::<HtmlElement>()?;
+    let send_button: HtmlButtonElement = document.create_element("button")?.dyn_into()?;
+    send_button.set_text_content(Some("Send"));
+    body.append_child(&send_button)?;
 
-    // Set onclick event handler
-    let closure = Closure::wrap(Box::new(move |_event: Event| {
-        let msg = input.value();
-        if !msg.is_empty() {
-            ws_clone.send_with_str(&msg).unwrap();
-            web_sys::console::log_1(&format!("Sent: {}", msg).into());
-            input.set_value(""); // clear input
-        } else {
-            web_sys::console::log_1(&"Message is empty".into());
+    let messages_div = document.create_element("div")?.dyn_into::<HtmlElement>()?;
+    body.append_child(&messages_div)?;
+
+
+
+    let conn = Rc::new(
+        WsConnection::connect("ws://localhost:8080", move |msg: TalkProtocol| {
+            let message_text = format!("{}: {}", msg.username, msg.message);
+            let message_element = document.create_element("p").unwrap();
+            message_element.set_text_content(Some(&message_text));
+            messages_div.append_child(&message_element).unwrap();
+        })
+        .await
+        .unwrap(),
+    );
+
+    let conn_clone = Rc::clone(&conn);
+    let on_click = Closure::<dyn FnMut()>::new(move || {
+        let username = username_input.value();
+        let message = message_input.value();
+
+        if !username.is_empty() && !message.is_empty() {
+            let msg = TalkProtocol {
+                username,
+                message,
+                action: None,
+                room_id: 1,
+                unixtime: 100,
+            };
+
+            conn_clone.send(msg).unwrap();
+            message_input.set_value("");
         }
-    }) as Box<dyn FnMut(_)>);
+    });
 
-    let onerror = Closure::wrap(Box::new(move |e: ErrorEvent| {
-        web_sys::console::error_1(&format!("WebSocket error: {:?}", e).into());
-    }) as Box<dyn FnMut(_)>);
-    ws.set_onerror(Some(onerror.as_ref().unchecked_ref()));
-    onerror.forget();
-
-    let onclose = Closure::wrap(Box::new(move |e: CloseEvent| {
-        web_sys::console::log_1(
-            &format!(
-                "WebSocket closed (code: {}, reason: {}, was_clean: {})",
-                e.code(),
-                e.reason(),
-                e.was_clean()
-            )
-            .into(),
-        );
-    }) as Box<dyn FnMut(_)>);
-    ws.set_onclose(Some(onclose.as_ref().unchecked_ref()));
-    onclose.forget();
-    button.set_onclick(Some(closure.as_ref().unchecked_ref()));
-    closure.forget(); // prevent it from being dropped
+    send_button.set_onclick(Some(on_click.as_ref().unchecked_ref()));
+    on_click.forget();
 
     Ok(())
 }

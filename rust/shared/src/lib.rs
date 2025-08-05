@@ -111,13 +111,12 @@ pub mod wasm {
     }
 
     pub struct WsConnection {
-        ws_sender: futures_channel::mpsc::UnboundedSender<TalkProtocol>,
+        pub ws_sender: futures_channel::mpsc::UnboundedSender<TalkProtocol>,
     }
 
     impl WsConnection {
         pub async fn connect(
             url: &str,
-            mut on_message: impl FnMut(TalkProtocol) + 'static,
         ) -> Result<Self, WsError> {
             let ws = WebSocket::open(url)
                 .map_err(|e| WsError::ConnectionFailed(e.to_string()))?;
@@ -141,7 +140,7 @@ pub mod wasm {
                 while let Some(msg) = read.next().await {
                     if let Ok(WsMessage::Bytes(bin)) = msg {
                         if let Ok(parsed) = TalkProtocol::deserialize(&bin) {
-                            on_message(parsed);
+                            // on_message(parsed);
                         }
                     }
                 }

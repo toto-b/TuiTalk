@@ -3,10 +3,8 @@ name = "wasm-client"
 version = "0.1.0"
 edition = "2024"
 
-[lib]
-crate-type = ["cdylib", "rlib"]
-
 [dependencies]
+yew = { git = "https://github.com/yewstack/yew/", features = ["csr"] }
 shared = {path = "../shared"}
 gloo-net = "0.3"       # WebSocket for WASM
 wasm-bindgen = "0.2"

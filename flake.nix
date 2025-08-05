@@ -16,6 +16,7 @@
         packages = with pkgs; [
           rustc
           cargo
+          trunk
           rustfmt
           clippy
           bacon

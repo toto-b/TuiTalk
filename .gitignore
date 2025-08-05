@@ -1,5 +1,6 @@
 wasm-client/out
 wasm-client/target-wasm
+rust/wasm-client/dist
 rust/wasm-client/out/wasm_client.d.ts
 rust/wasm-client/out/wasm_client.js
 rust/wasm-client/out/wasm_client_bg.wasm

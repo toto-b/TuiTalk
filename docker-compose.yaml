@@ -9,30 +9,17 @@ services:
       MYSQL_PASSWORD: examplepass
       MYSQL_RANDOM_ROOT_PASSWORD: '1'
 
-  # tuitalk_backend should look something like this:
-  #   build: tuitalk_backend
-  #   environment:
-  #     - PORT=5050
-  #   deploy:
-  #     replicas: 3
-  #   networks:
-  #     - loadbalancing
-
-  test_backend_1:
-    build: test_backend
-    container_name: test_backend_1
+  tuitalk_backend should look something like this:
+    build: tuitalk_backend
+    container_name: tuitalk_backend
+    environment:
+      - PORT=5050
+    deploy:
+      replicas: 3
     networks:
       - loadbalancing
     ports:
-      - "90:80"
-
-  test_backend_2:
-    build: test_backend_1
-    container_name: test_backend_2
-    networks:
-      - loadbalancing
-    ports:
-      - "91:80"
+    # - "x:5050"
 
   loadbalancer:
     build: loadbalancer
@@ -42,9 +29,7 @@ services:
     networks:
       - loadbalancing
     depends_on:
-      - test_backend_1
-      - test_backend_2
-
+      - tuitalk_backend
 
 networks:
   loadbalancing:

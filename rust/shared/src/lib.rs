@@ -96,65 +96,57 @@ pub mod native {
 //----------------------------------------------------------------------------------------------------WASM----------------------------------------------------------------------------------------------------
 
 pub mod wasm {
-    use super::*;
-    use gloo_net::websocket::{futures::WebSocket, Message as WsMessage};
-    use wasm_bindgen_futures::spawn_local;
-    use futures_util::{SinkExt, StreamExt};
-    use thiserror::Error;
+    use gloo_net::websocket::futures::WebSocket;
+    use gloo_net::websocket::{Message, WebSocketError};
+    use gloo_utils::errors::JsError;
+    use super::{TalkProtocol, ClientAction};
+    use futures_util::stream::{SplitSink, SplitStream};
+    use futures_util::StreamExt;
+    use futures_util::SinkExt;
+    use futures_channel::mpsc::UnboundedReceiver;
 
-    #[derive(Error, Debug)]
-    pub enum WsError {
-        #[error("WebSocket connection failed: {0}")]
-        ConnectionFailed(String),
-        #[error("Send failed: {0}")]
-        SendFailed(String),
+
+    pub fn connect_websocket(url: &str) -> Result<WebSocket, JsError> {
+        WebSocket::open(url)
     }
 
-    pub struct WsConnection {
-        pub ws_sender: futures_channel::mpsc::UnboundedSender<TalkProtocol>,
+    pub async fn sender_task(
+        mut rx: UnboundedReceiver<TalkProtocol>,
+        mut write: SplitSink<WebSocket, Message>,
+    ) {
+        while let Some(msg) = rx.next().await {
+            match bincode::serialize(&msg) {
+                Ok(bin) => {
+                    if let Err(_e) = write.send(Message::Bytes(bin)).await {
+                        break;
+                    }
+                }
+                Err(e) => panic!("Sending message failed {}", e),
+            }
+        }
+
+        println!("Sender task ended");
     }
 
-    impl WsConnection {
-        pub async fn connect(
-            url: &str,
-        ) -> Result<Self, WsError> {
-            let ws = WebSocket::open(url)
-                .map_err(|e| WsError::ConnectionFailed(e.to_string()))?;
-
-            let (mut write, mut read) = ws.split();
-            let (tx, mut rx) = futures_channel::mpsc::unbounded();
-
-            spawn_local(async move {
-                while let Some(msg) = rx.next().await {
-                    match bincode::serialize(&msg) {
-                        Ok(bin) => if let Err(e) = write.send(WsMessage::Bytes(bin)).await {
-                            log::error!("Send error: {:?}", e);
-                            break;
-                        },
-                        Err(e) => log::error!("Serialization error: {:?}", e),
+    pub async fn receiver_task(
+        mut read: SplitStream<WebSocket>,
+        mut on_message: impl FnMut(TalkProtocol) + Send + 'static,
+    ) -> Result<(), WebSocketError> {
+        while let Some(msg) = read.next().await {
+            match msg {
+                Ok(Message::Bytes(bin)) => {
+                    if let Ok(parsed) = TalkProtocol::deserialize(&bin) {
+                        on_message(parsed);
                     }
                 }
-            });
-
-            spawn_local(async move {
-                while let Some(msg) = read.next().await {
-                    if let Ok(WsMessage::Bytes(bin)) = msg {
-                        if let Ok(parsed) = TalkProtocol::deserialize(&bin) {
-                            // on_message(parsed);
-                        }
-                    }
+                Ok(Message::Text(text)) => {
+                    // Optional: Handle text messages if you expect them
+                    println!("Received text message: {}", text);
                 }
-            });
-
-            Ok(Self { ws_sender: tx })
+                Err(e) => return Err(e),
+            }
         }
-
-        pub fn send(&self, msg: TalkProtocol) -> Result<(), WsError> {
-            self.ws_sender
-                .unbounded_send(msg)
-                .map_err(|e| WsError::SendFailed(e.to_string()))?;
-            Ok(())
-        }
+        Ok(())
     }
 }
 

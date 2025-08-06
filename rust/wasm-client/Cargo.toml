@@ -5,8 +5,10 @@ edition = "2024"
 
 [dependencies]
 yew = { git = "https://github.com/yewstack/yew/", features = ["csr"] }
+gloo-net = { version = "0.4", features = ["websocket"] }  # WebSocket implementation
+bincode = "1.3"
+serde = { version = "1", features = ["derive"] }
 shared = {path = "../shared"}
-gloo-net = "0.3"       # WebSocket for WASM
 wasm-bindgen = "0.2"
 wasm-bindgen-futures = "0.4"
 log = "0.4"

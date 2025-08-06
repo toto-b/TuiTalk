@@ -1,13 +1,13 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub enum ClientAction {
     Join,
     Leave,
     CreateRoom,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct TalkProtocol {
     pub username: String,
     pub message: String,
@@ -96,15 +96,18 @@ pub mod native {
 //----------------------------------------------------------------------------------------------------WASM----------------------------------------------------------------------------------------------------
 
 pub mod wasm {
+    use super::{ClientAction, TalkProtocol};
+    use futures_channel::mpsc::UnboundedReceiver;
+    use futures_util::SinkExt;
+    use futures_util::StreamExt;
+    // use futures_util::lock::Mutex;
+    use futures_util::stream::{SplitSink, SplitStream};
     use gloo_net::websocket::futures::WebSocket;
     use gloo_net::websocket::{Message, WebSocketError};
     use gloo_utils::errors::JsError;
-    use super::{TalkProtocol, ClientAction};
-    use futures_util::stream::{SplitSink, SplitStream};
-    use futures_util::StreamExt;
-    use futures_util::SinkExt;
-    use futures_channel::mpsc::UnboundedReceiver;
-
+    use log::Level;
+    use log::info;
+    use std::{sync::Arc, sync::Mutex};
 
     pub fn connect_websocket(url: &str) -> Result<WebSocket, JsError> {
         WebSocket::open(url)
@@ -130,23 +133,26 @@ pub mod wasm {
 
     pub async fn receiver_task(
         mut read: SplitStream<WebSocket>,
-        mut on_message: impl FnMut(TalkProtocol) + Send + 'static,
-    ) -> Result<(), WebSocketError> {
+        state: Arc<Mutex<Vec<TalkProtocol>>>,
+    ) {
         while let Some(msg) = read.next().await {
             match msg {
                 Ok(Message::Bytes(bin)) => {
                     if let Ok(parsed) = TalkProtocol::deserialize(&bin) {
-                        on_message(parsed);
+                        let mut x = state.lock().unwrap();
+                        x.push(parsed.clone());
+
+                        let _ = console_log::init_with_level(Level::Debug);
+                        info!("Received bytes message: {}", &parsed.message);
                     }
                 }
                 Ok(Message::Text(text)) => {
                     // Optional: Handle text messages if you expect them
                     println!("Received text message: {}", text);
                 }
-                Err(e) => return Err(e),
+                Err(_e) => (),
             }
         }
-        Ok(())
     }
 }
 

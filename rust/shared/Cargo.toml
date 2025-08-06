@@ -8,14 +8,14 @@ crate-type = ["cdylib", "rlib"]
 
 # Common dependencies for both targets
 [dependencies]
-gloo-net = { version = "0.4", features = ["websocket"] }  # WebSocket implementation
-gloo-utils = "0.2.0"
+gloo-net = { version = "0.2", features = ["websocket"] }  # WebSocket implementation
+gloo-utils = "0.1.7"
 wasm-bindgen = "0.2"  # Required for WASM interop
 futures-util = "0.3"  # For working with async streams
 futures-channel = "0.3"
 bincode = "1.3"
 serde = { version = "1", features = ["derive"] }
-yew = { git = "https://github.com/yewstack/yew/", features = ["csr"] }
+yew = { version = "0.20", features = ["csr"] }
 log = "0.4"
 console_log = "0.2"
 

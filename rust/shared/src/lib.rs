@@ -96,18 +96,18 @@ pub mod native {
 //----------------------------------------------------------------------------------------------------WASM----------------------------------------------------------------------------------------------------
 
 pub mod wasm {
-    use super::{ClientAction, TalkProtocol};
+    use super::TalkProtocol;
     use futures_channel::mpsc::UnboundedReceiver;
     use futures_util::SinkExt;
     use futures_util::StreamExt;
     // use futures_util::lock::Mutex;
     use futures_util::stream::{SplitSink, SplitStream};
+    use gloo_net::websocket::Message;
     use gloo_net::websocket::futures::WebSocket;
-    use gloo_net::websocket::{Message, WebSocketError};
     use gloo_utils::errors::JsError;
     use log::Level;
     use log::info;
-    use std::{sync::Arc, sync::Mutex};
+    use yew::prelude::*;
 
     pub fn connect_websocket(url: &str) -> Result<WebSocket, JsError> {
         WebSocket::open(url)
@@ -133,14 +133,16 @@ pub mod wasm {
 
     pub async fn receiver_task(
         mut read: SplitStream<WebSocket>,
-        state: Arc<Mutex<Vec<TalkProtocol>>>,
+        messages: UseStateHandle<Vec<TalkProtocol>>,
     ) {
+        let messages = messages.clone();
         while let Some(msg) = read.next().await {
             match msg {
                 Ok(Message::Bytes(bin)) => {
                     if let Ok(parsed) = TalkProtocol::deserialize(&bin) {
-                        let mut x = state.lock().unwrap();
-                        x.push(parsed.clone());
+                        let mut current = (*messages).clone();
+                        current.push(parsed.clone());
+                        messages.set(current);
 
                         let _ = console_log::init_with_level(Level::Debug);
                         info!("Received bytes message: {}", &parsed.message);

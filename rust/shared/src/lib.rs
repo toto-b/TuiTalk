@@ -1,13 +1,13 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub enum ClientAction {
     Join,
     Leave,
     CreateRoom,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct TalkProtocol {
     pub username: String,
     pub message: String,
@@ -96,65 +96,64 @@ pub mod native {
 //----------------------------------------------------------------------------------------------------WASM----------------------------------------------------------------------------------------------------
 
 pub mod wasm {
-    use super::*;
-    use gloo_net::websocket::{futures::WebSocket, Message as WsMessage};
-    use wasm_bindgen_futures::spawn_local;
-    use futures_util::{SinkExt, StreamExt};
-    use thiserror::Error;
+    use super::TalkProtocol;
+    use futures_channel::mpsc::UnboundedReceiver;
+    use futures_util::SinkExt;
+    use futures_util::StreamExt;
+    // use futures_util::lock::Mutex;
+    use futures_util::stream::{SplitSink, SplitStream};
+    use gloo_net::websocket::Message;
+    use gloo_net::websocket::futures::WebSocket;
+    use gloo_utils::errors::JsError;
+    use log::Level;
+    use log::info;
+    use yew::prelude::*;
 
-    #[derive(Error, Debug)]
-    pub enum WsError {
-        #[error("WebSocket connection failed: {0}")]
-        ConnectionFailed(String),
-        #[error("Send failed: {0}")]
-        SendFailed(String),
+    pub fn connect_websocket(url: &str) -> Result<WebSocket, JsError> {
+        WebSocket::open(url)
     }
 
-    pub struct WsConnection {
-        ws_sender: futures_channel::mpsc::UnboundedSender<TalkProtocol>,
-    }
-
-    impl WsConnection {
-        pub async fn connect(
-            url: &str,
-            mut on_message: impl FnMut(TalkProtocol) + 'static,
-        ) -> Result<Self, WsError> {
-            let ws = WebSocket::open(url)
-                .map_err(|e| WsError::ConnectionFailed(e.to_string()))?;
-
-            let (mut write, mut read) = ws.split();
-            let (tx, mut rx) = futures_channel::mpsc::unbounded();
-
-            spawn_local(async move {
-                while let Some(msg) = rx.next().await {
-                    match bincode::serialize(&msg) {
-                        Ok(bin) => if let Err(e) = write.send(WsMessage::Bytes(bin)).await {
-                            log::error!("Send error: {:?}", e);
-                            break;
-                        },
-                        Err(e) => log::error!("Serialization error: {:?}", e),
+    pub async fn sender_task(
+        mut rx: UnboundedReceiver<TalkProtocol>,
+        mut write: SplitSink<WebSocket, Message>,
+    ) {
+        while let Some(msg) = rx.next().await {
+            match bincode::serialize(&msg) {
+                Ok(bin) => {
+                    if let Err(_e) = write.send(Message::Bytes(bin)).await {
+                        break;
                     }
                 }
-            });
-
-            spawn_local(async move {
-                while let Some(msg) = read.next().await {
-                    if let Ok(WsMessage::Bytes(bin)) = msg {
-                        if let Ok(parsed) = TalkProtocol::deserialize(&bin) {
-                            on_message(parsed);
-                        }
-                    }
-                }
-            });
-
-            Ok(Self { ws_sender: tx })
+                Err(e) => panic!("Sending message failed {}", e),
+            }
         }
 
-        pub fn send(&self, msg: TalkProtocol) -> Result<(), WsError> {
-            self.ws_sender
-                .unbounded_send(msg)
-                .map_err(|e| WsError::SendFailed(e.to_string()))?;
-            Ok(())
+        println!("Sender task ended");
+    }
+
+    pub async fn receiver_task(
+        mut read: SplitStream<WebSocket>,
+        messages: UseStateHandle<Vec<TalkProtocol>>,
+    ) {
+        let messages = messages.clone();
+        while let Some(msg) = read.next().await {
+            match msg {
+                Ok(Message::Bytes(bin)) => {
+                    if let Ok(parsed) = TalkProtocol::deserialize(&bin) {
+                        let mut current = (*messages).clone();
+                        current.push(parsed.clone());
+                        messages.set(current);
+
+                        let _ = console_log::init_with_level(Level::Debug);
+                        info!("Received bytes message: {}", &parsed.message);
+                    }
+                }
+                Ok(Message::Text(text)) => {
+                    // Optional: Handle text messages if you expect them
+                    println!("Received text message: {}", text);
+                }
+                Err(_e) => (),
+            }
         }
     }
 }

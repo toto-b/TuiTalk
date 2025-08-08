@@ -3,12 +3,12 @@ name = "wasm-client"
 version = "0.1.0"
 edition = "2024"
 
-[lib]
-crate-type = ["cdylib", "rlib"]
-
 [dependencies]
+yew = { version = "0.20", features = ["csr"] }
+gloo-net = { version = "0.2", features = ["websocket"] }  # WebSocket implementation
+bincode = "1.3"
+serde = { version = "1", features = ["derive"] }
 shared = {path = "../shared"}
-gloo-net = "0.3"       # WebSocket for WASM
 wasm-bindgen = "0.2"
 wasm-bindgen-futures = "0.4"
 log = "0.4"
@@ -27,3 +27,5 @@ web-sys = {version = "0.3.77", features = [
 console_error_panic_hook = "0.1.7"
 chrono = "0.4.41"
 instant = "0.1"
+gloo-timers = "0.3.0"
+wasm-logger = "0.2.0"

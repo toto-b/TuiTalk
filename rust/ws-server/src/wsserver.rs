@@ -85,7 +85,6 @@ pub async fn handle_connection(peer_map: PeerMap, raw_stream: TcpStream, addr: S
 pub async fn start_ws_server() -> Result<(), IoError> {
 
     let addr = env::args().nth(1).unwrap_or_else(|| "0.0.0.0:8080".to_string());
-
     let state = PeerMap::new(Mutex::new(HashMap::new()));
 
     let try_socket = TcpListener::bind(&addr).await;

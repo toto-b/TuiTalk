@@ -1,7 +1,6 @@
 use std::{
     collections::HashMap,
     env,
-    io::Error as IoError,
     net::SocketAddr,
     sync::{Arc, Mutex},
 };
@@ -13,12 +12,15 @@ use futures_util::{future, pin_mut, stream::TryStreamExt, StreamExt};
 
 use tokio::{net::{TcpListener, TcpStream}, runtime::Handle};
 use tokio_tungstenite::tungstenite::protocol::Message;
+use tokio::sync::Mutex as TMutex;
+use redis::{Commands, Connection};
+type SharedRedis = Arc<TMutex<Connection>>;
 
 type Tx = UnboundedSender<Message>;
 type PeerMap = Arc<Mutex<HashMap<SocketAddr, Tx>>>;
 
 
-pub async fn handle_connection(peer_map: PeerMap, raw_stream: TcpStream, addr: SocketAddr) {
+pub async fn handle_connection(peer_map: PeerMap, raw_stream: TcpStream, addr: SocketAddr, shared_redis: SharedRedis) {
     println!("Incoming TCP connection from: {}", addr);
 
     let ws_stream = tokio_tungstenite::accept_async(raw_stream)
@@ -32,12 +34,6 @@ pub async fn handle_connection(peer_map: PeerMap, raw_stream: TcpStream, addr: S
     let (outgoing, incoming) = ws_stream.split();
 
     let broadcast_incoming = incoming.try_for_each(|msg| {
-        match msg {
-            Message::Text(_) => println!("Server has received Text"),
-            Message::Binary(_) => println!("Server has received Text"),
-            _ => println!("The Rest of Messages"),
-
-        }
         let deserialize_msg: TalkProtocol = match bincode::deserialize(&msg.clone().into_data()) {
             Ok(msg) => msg,
             Err(e) => {
@@ -70,6 +66,15 @@ pub async fn handle_connection(peer_map: PeerMap, raw_stream: TcpStream, addr: S
             recp.unbounded_send(msg.clone()).unwrap(); // tx.send -> sending to all other future channels which are held by the other clients
         }  
 
+        // Publish to Redis
+        // Use this pattern for high-volume publishing
+        let sr_clone = Arc::clone(&shared_redis);
+        let msg_clone = deserialize_msg.clone();
+        tokio::spawn(async move {
+            let mut conn = sr_clone.lock().await;
+            let _ : () = conn.publish("peter", msg_clone.message).unwrap();
+        });
+
         future::ok(())
     });
 
@@ -82,7 +87,10 @@ pub async fn handle_connection(peer_map: PeerMap, raw_stream: TcpStream, addr: S
     peer_map.lock().unwrap().remove(&addr);
 }
 
-pub async fn start_ws_server() -> Result<(), IoError> {
+
+
+
+pub async fn start_ws_server(shared_redis: SharedRedis) ->  Result<(), std::io::Error>  {
 
     let addr = env::args().nth(1).unwrap_or_else(|| "0.0.0.0:8080".to_string());
     let state = PeerMap::new(Mutex::new(HashMap::new()));
@@ -93,7 +101,8 @@ pub async fn start_ws_server() -> Result<(), IoError> {
     println!("Listening on: {}", addr);
 
     while let Ok((stream, addr)) = listener.accept().await {
-        tokio::spawn(handle_connection(state.clone(), stream, addr));
+        let rd_clone = Arc::clone(&shared_redis);
+        tokio::spawn(handle_connection(state.clone(), stream, addr, rd_clone));
         let metrics = Handle::current().metrics();
 
         let n = metrics.num_alive_tasks();

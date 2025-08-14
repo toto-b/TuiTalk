@@ -25,6 +25,7 @@
           wasm-bindgen-cli
           python3
           wasm-pack
+          redis
         ];
       };
 

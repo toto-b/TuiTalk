@@ -1,17 +1,19 @@
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub enum ClientAction {
     Join,
     Leave,
-    CreateRoom,
+    Send,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct TalkProtocol {
+    pub uuid: Uuid,
     pub username: String,
-    pub message: String,
-    pub action: Option<ClientAction>,
+    pub message: Option<String>,
+    pub action: ClientAction,
     pub room_id: i32,
     pub unixtime: u64,
 }
@@ -145,7 +147,9 @@ pub mod wasm {
                         messages.set(current);
 
                         let _ = console_log::init_with_level(Level::Debug);
-                        info!("Received bytes message: {}", &parsed.message);
+                        if let Some(parsed_msg) = parsed.message {
+                            info!("Received bytes message: {}", parsed_msg);
+                        }
                     }
                 }
                 Ok(Message::Text(text)) => {

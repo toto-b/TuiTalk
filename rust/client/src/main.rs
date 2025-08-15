@@ -30,24 +30,15 @@ async fn main() -> Result<()> {
     app_result
 }
 
-async fn send_example_messages(tx: UnboundedSender<TalkProtocol>) {
-    let msg1 = TalkProtocol {
-        username: "client".to_string(),
-        message: "Hello server and others!".to_string(),
+async fn send_message(tx: UnboundedSender<TalkProtocol>, message_input: String, client_username: String) {
+    let msg = TalkProtocol {
+        username: client_username,
+        message: message_input,
         action: None,
         room_id: 0,
         unixtime: 100,
     };
-    tx.unbounded_send(msg1).unwrap();
-
-    let msg2 = TalkProtocol {
-        username: "client".to_string(),
-        message: "I want to join room".to_string(),
-        action: Some(ClientAction::Join),
-        room_id: 42,
-        unixtime: 100,
-    };
-    tx.unbounded_send(msg2).unwrap();
+    tx.unbounded_send(msg).unwrap();
 }
 
 struct App {
@@ -65,14 +56,14 @@ enum InputMode {
 
 impl App {
     const fn new(
-        tx: UnboundedSender<TalkProtocol>,
+        transmit: UnboundedSender<TalkProtocol>,
     ) -> Self {
         Self {
             input: String::new(),
             input_mode: InputMode::Normal,
             messages: Vec::new(),
             character_index: 0,
-            tx: tx
+            tx: transmit
         }
     }
 
@@ -125,9 +116,9 @@ impl App {
 
     fn submit_message(&mut self) {
         self.messages.push(self.input.clone());
+        tokio::spawn(send_message(self.tx.clone(), self.input.clone(), "Client".to_string()));
         self.input.clear();
         self.reset_cursor();
-        tokio::spawn(send_example_messages(self.tx.clone()));
     }
 
     fn run(mut self, mut terminal: DefaultTerminal) -> Result<()> {

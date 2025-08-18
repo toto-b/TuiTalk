@@ -1,6 +1,8 @@
 use futures_channel::mpsc::{UnboundedSender, unbounded};
 pub use shared::native::{connect, receiver_task, sender_task};
 use shared::{ClientAction, TalkProtocol};
+use std::sync::Arc;
+use std::sync::Mutex;
 
 use color_eyre::Result;
 use ratatui::{
@@ -18,34 +20,30 @@ async fn main() -> Result<()> {
 
     let (tx, rx) = unbounded::<TalkProtocol>();
     let (write, read) = connect(url).await?;
+    let communication: Arc<Mutex<Vec<TalkProtocol>>> = Arc::new(Mutex::new(Vec::new()));
     tokio::spawn(sender_task(rx, write));
-    tokio::spawn(receiver_task(read, |msg| {
-        println!("Received message: {:?}", msg);
+
+    let klon = Arc::clone(&communication);
+    tokio::spawn(receiver_task(read, move |msg| {
+        klon.lock().unwrap().push(msg);
     }));
 
     color_eyre::install()?;
     let terminal = ratatui::init();
-    let app_result = App::new(tx).run(terminal);
+    let app_result = App::new(tx, communication).run(terminal);
     ratatui::restore();
     app_result
 }
 
-async fn send_message(tx: UnboundedSender<TalkProtocol>, message_input: String, client_username: String) {
-    let msg = TalkProtocol {
-        username: client_username,
-        message: message_input,
-        action: None,
-        room_id: 0,
-        unixtime: 100,
-    };
-    tx.unbounded_send(msg).unwrap();
+async fn send_message(tx: UnboundedSender<TalkProtocol>, communication_protocol: TalkProtocol) {
+    tx.unbounded_send(communication_protocol).unwrap();
 }
 
 struct App {
     input: String,
     character_index: usize,
     input_mode: InputMode,
-    messages: Vec<String>,
+    messages: Arc<Mutex<Vec<TalkProtocol>>>,
     tx: UnboundedSender<TalkProtocol>,
 }
 
@@ -57,13 +55,14 @@ enum InputMode {
 impl App {
     const fn new(
         transmit: UnboundedSender<TalkProtocol>,
+        communication: Arc<Mutex<Vec<TalkProtocol>>>,
     ) -> Self {
         Self {
             input: String::new(),
             input_mode: InputMode::Normal,
-            messages: Vec::new(),
+            messages: communication,
             character_index: 0,
-            tx: transmit
+            tx: transmit,
         }
     }
 
@@ -94,10 +93,8 @@ impl App {
     fn delete_char(&mut self) {
         let is_not_cursor_leftmost = self.character_index != 0;
         if is_not_cursor_leftmost {
-
             let current_index = self.character_index;
             let from_left_to_current_index = current_index - 1;
-
             let before_char_to_delete = self.input.chars().take(from_left_to_current_index);
             let after_char_to_delete = self.input.chars().skip(current_index);
 
@@ -115,8 +112,16 @@ impl App {
     }
 
     fn submit_message(&mut self) {
-        self.messages.push(self.input.clone());
-        tokio::spawn(send_message(self.tx.clone(), self.input.clone(), "Client".to_string()));
+        let com = TalkProtocol {
+            username: "Client".to_string(),
+            message: self.input.clone(),
+            action: None,
+            room_id: 1,
+            unixtime: 2,
+        };
+        tokio::spawn(send_message(self.tx.clone(), com.clone()));
+        self.messages.lock().unwrap().push(com);
+
         self.input.clear();
         self.reset_cursor();
     }
@@ -204,10 +209,12 @@ impl App {
 
         let messages: Vec<ListItem> = self
             .messages
+            .lock()
+            .unwrap()
             .iter()
             .enumerate()
             .map(|(i, m)| {
-                let content = Line::from(Span::raw(format!("{i}: {m}")));
+                let content = Line::from(Span::raw(format!("{i}: {:?}", m)));
                 ListItem::new(content)
             })
             .collect();

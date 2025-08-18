@@ -43,6 +43,7 @@ struct App {
     input: String,
     character_index: usize,
     input_mode: InputMode,
+    scroll: usize,
     messages: Arc<Mutex<Vec<TalkProtocol>>>,
     tx: UnboundedSender<TalkProtocol>,
 }
@@ -61,6 +62,7 @@ impl App {
             input: String::new(),
             input_mode: InputMode::Normal,
             messages: communication,
+            scroll: 0,
             character_index: 0,
             tx: transmit,
         }
@@ -133,11 +135,21 @@ impl App {
             if let Event::Key(key) = event::read()? {
                 match self.input_mode {
                     InputMode::Normal => match key.code {
-                        KeyCode::Char('e') => {
+                        KeyCode::Char('i') => {
                             self.input_mode = InputMode::Editing;
                         }
                         KeyCode::Char('q') => {
                             return Ok(());
+                        }
+                        KeyCode::Char('k') => {
+                            if self.scroll + 1 < self.messages.lock().unwrap().len() {
+                                self.scroll += 1;
+                            }
+                        }
+                        KeyCode::Char('j') => {
+                            if self.scroll > 0 {
+                                self.scroll -= 1;
+                            }
                         }
                         _ => {}
                     },
@@ -156,7 +168,7 @@ impl App {
         }
     }
 
-    fn draw(&self, frame: &mut Frame) {
+    fn draw(&mut self, frame: &mut Frame) {
         let vertical = Layout::vertical([
             Constraint::Length(1),
             Constraint::Length(3),
@@ -170,7 +182,7 @@ impl App {
                     "Press ".into(),
                     "q".bold(),
                     " to exit, ".into(),
-                    "e".bold(),
+                    "i".bold(),
                     " to start editing.".bold(),
                 ],
                 Style::default().add_modifier(Modifier::RAPID_BLINK),
@@ -207,16 +219,24 @@ impl App {
             )),
         }
 
-        let messages: Vec<ListItem> = self
-            .messages
-            .lock()
-            .unwrap()
+        let all_messages = self.messages.lock().unwrap();
+        let height = messages_area.height as usize;
+
+        if self.scroll > all_messages.len().saturating_sub(height - 2) {
+            self.scroll = all_messages.len().saturating_sub(height - 2);
+        }
+
+        let start = all_messages.len().saturating_sub(height - 2 + self.scroll);
+        let visible = &all_messages[start..];
+
+        let messages: Vec<ListItem> = visible
             .iter()
             .map(|m| {
                 let content = Line::from(Span::raw(format!("{}: {}", m.username, m.message)));
                 ListItem::new(content)
             })
             .collect();
+
         let messages = List::new(messages).block(Block::bordered().title("Messages"));
         frame.render_widget(messages, messages_area);
     }

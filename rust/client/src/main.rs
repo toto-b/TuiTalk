@@ -212,9 +212,8 @@ impl App {
             .lock()
             .unwrap()
             .iter()
-            .enumerate()
-            .map(|(i, m)| {
-                let content = Line::from(Span::raw(format!("{i}: {:?}", m)));
+            .map(|m| {
+                let content = Line::from(Span::raw(format!("{}: {}", m.username, m.message)));
                 ListItem::new(content)
             })
             .collect();

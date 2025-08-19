@@ -1,6 +1,6 @@
 use futures_channel::mpsc::{UnboundedSender, unbounded};
 pub use shared::native::{connect, receiver_task, sender_task};
-use shared::{ClientAction, TalkProtocol};
+use shared::{TalkProtocol};
 use std::sync::Arc;
 use std::sync::Mutex;
 
@@ -23,9 +23,9 @@ async fn main() -> Result<()> {
     let communication: Arc<Mutex<Vec<TalkProtocol>>> = Arc::new(Mutex::new(Vec::new()));
     tokio::spawn(sender_task(rx, write));
 
-    let klon = Arc::clone(&communication);
+    let com = Arc::clone(&communication);
     tokio::spawn(receiver_task(read, move |msg| {
-        klon.lock().unwrap().push(msg);
+        com.lock().unwrap().push(msg);
     }));
 
     color_eyre::install()?;
@@ -44,7 +44,7 @@ struct App {
     character_index: usize,
     input_mode: InputMode,
     scroll: usize,
-    messages: Arc<Mutex<Vec<TalkProtocol>>>,
+    communication: Arc<Mutex<Vec<TalkProtocol>>>,
     tx: UnboundedSender<TalkProtocol>,
 }
 
@@ -56,12 +56,12 @@ enum InputMode {
 impl App {
     const fn new(
         transmit: UnboundedSender<TalkProtocol>,
-        communication: Arc<Mutex<Vec<TalkProtocol>>>,
+        com: Arc<Mutex<Vec<TalkProtocol>>>,
     ) -> Self {
         Self {
             input: String::new(),
             input_mode: InputMode::Normal,
-            messages: communication,
+            communication: com,
             scroll: 0,
             character_index: 0,
             tx: transmit,
@@ -122,7 +122,7 @@ impl App {
             unixtime: 2,
         };
         send_message(self.tx.clone(), com.clone());
-        self.messages.lock().unwrap().push(com);
+        self.communication.lock().unwrap().push(com);
 
         self.input.clear();
         self.reset_cursor();
@@ -142,7 +142,7 @@ impl App {
                             return Ok(());
                         }
                         KeyCode::Char('k') => {
-                            if self.scroll + 1 < self.messages.lock().unwrap().len() {
+                            if self.scroll + 1 < self.communication.lock().unwrap().len() {
                                 self.scroll += 1;
                             }
                         }
@@ -219,17 +219,17 @@ impl App {
             )),
         }
 
-        let all_messages = self.messages.lock().unwrap();
+        let full_messages = self.communication.lock().unwrap();
         let height = messages_area.height as usize;
 
-        if self.scroll > all_messages.len().saturating_sub(height - 2) {
-            self.scroll = all_messages.len().saturating_sub(height - 2);
+        if self.scroll > full_messages.len().saturating_sub(height - 2) {
+            self.scroll = full_messages.len().saturating_sub(height - 2);
         }
 
-        let start = all_messages.len().saturating_sub(height - 2 + self.scroll);
-        let visible = &all_messages[start..];
+        let start = full_messages.len().saturating_sub(height - 2 + self.scroll);
+        let visible = &full_messages[start..];
 
-        let messages: Vec<ListItem> = visible
+        let communication: Vec<ListItem> = visible
             .iter()
             .map(|m| {
                 let content = Line::from(Span::raw(format!("{}: {}", m.username, m.message)));
@@ -237,7 +237,7 @@ impl App {
             })
             .collect();
 
-        let messages = List::new(messages).block(Block::bordered().title("Messages"));
-        frame.render_widget(messages, messages_area);
+        let communication = List::new(communication).block(Block::bordered().title("Messages"));
+        frame.render_widget(communication, messages_area);
     }
 }

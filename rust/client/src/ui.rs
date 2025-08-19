@@ -1,4 +1,5 @@
 use crate::app::{App, InputMode};
+use chrono::{Local, Utc, TimeZone};
 use ratatui::{
     Frame,
     layout::{Constraint, Layout, Position},
@@ -15,7 +16,6 @@ pub fn draw(app: &mut App, frame: &mut Frame) {
     ]);
     let [help_area, input_area, messages_area] = vertical.areas(frame.area());
 
-    // Help bar
     let (msg, style) = match app.input_mode {
         InputMode::Normal => (
             vec![
@@ -41,7 +41,6 @@ pub fn draw(app: &mut App, frame: &mut Frame) {
     let text = Text::from(Line::from(msg)).patch_style(style);
     frame.render_widget(Paragraph::new(text), help_area);
 
-    // Input field
     let input = Paragraph::new(app.input.as_str())
         .style(match app.input_mode {
             InputMode::Normal => Style::default(),
@@ -57,7 +56,6 @@ pub fn draw(app: &mut App, frame: &mut Frame) {
         ));
     }
 
-    // Messages
     let full_messages = app.communication.lock().unwrap();
     let height = messages_area.height as usize;
     if app.scroll > full_messages.len().saturating_sub(height - 2) {
@@ -71,7 +69,8 @@ pub fn draw(app: &mut App, frame: &mut Frame) {
         .iter()
         .map(|m| {
             let content = Line::from(Span::raw(format!(
-                "{}: {}",
+                "<{}> {}: {}",
+                Utc.timestamp_opt(m.unixtime as i64, 0).unwrap().with_timezone(&Local).format("%H:%M"),
                 m.username,
                 m.message.clone().unwrap_or_default()
             )));

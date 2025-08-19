@@ -6,6 +6,7 @@ use ratatui::crossterm::event::{self, Event, KeyCode, KeyEventKind};
 use shared::{ClientAction::Send, TalkProtocol};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
+use std::time::{SystemTime, UNIX_EPOCH};
 use uuid::Uuid;
 
 pub struct App {
@@ -20,6 +21,13 @@ pub struct App {
 pub enum InputMode {
     Normal,
     Editing,
+}
+
+fn get_unix_timestamp() -> u64 {
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("unixtime");
+    now.as_secs()
 }
 
 impl App {
@@ -89,7 +97,7 @@ impl App {
             message: Some(self.input.clone()),
             action: Send,
             room_id: 1,
-            unixtime: 2,
+            unixtime: get_unix_timestamp(),
         };
         self.tx.unbounded_send(com).unwrap();
         self.input.clear();
@@ -98,10 +106,10 @@ impl App {
 
     pub fn run(mut self, mut terminal: DefaultTerminal) -> Result<()> {
         let tick_rate = Duration::from_millis(100);
-        let mut last_tick = Instant::now();
         loop {
             terminal.draw(|frame| self.draw(frame))?;
 
+            let last_tick = Instant::now();
             let timeout = tick_rate
                 .checked_sub(last_tick.elapsed())
                 .unwrap_or(Duration::from_secs(0));

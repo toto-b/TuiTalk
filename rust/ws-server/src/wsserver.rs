@@ -19,7 +19,7 @@ use tokio_tungstenite::tungstenite::protocol::Message;
 
 type SharedRedis = Arc<TMutex<Connection>>;
 
-pub async fn create_redis_async_connection() -> Result<PubSub, redis::RedisError> {
+pub async fn create_redis_async_pubsub_connection() -> Result<PubSub, redis::RedisError> {
     let client = redis::Client::open("redis://0.0.0.0/")?;
     let publish_conn = client.get_async_pubsub().await.expect("Async Connection");
     Ok(publish_conn)
@@ -27,12 +27,12 @@ pub async fn create_redis_async_connection() -> Result<PubSub, redis::RedisError
 
 pub async fn create_redis_connection() -> Result<Connection, redis::RedisError> {
     let client = redis::Client::open("redis://0.0.0.0/")?;
-    let publish_conn = client.get_connection().expect("Async Connection");
+    let publish_conn = client.get_connection().expect("Redis Connection");
     Ok(publish_conn)
 }
 
 pub async fn subscribe_to_redis(mut tx: UnboundedSender<Message>) {
-    let r = create_redis_async_connection().await;
+    let r = create_redis_async_pubsub_connection().await;
     let mut pubsub = r.expect("Pubusb Connection");
 
     // Subscribe to all channels for testing

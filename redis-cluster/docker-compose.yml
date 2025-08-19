@@ -1,0 +1,61 @@
+version: '3.8'
+services:
+  redis-cluster-init:
+    image: redis:7.2-alpine
+    container_name: redis-cluster-init
+    networks:
+      - redis-cluster-net
+    depends_on:
+      - redis-1
+      - redis-2
+      - redis-3
+    command: >
+      sh -c "
+      sleep 10;
+      echo 'yes' | redis-cli --cluster create redis-1:6379 redis-2:6379 redis-3:6379 --cluster-replicas 0;
+      "
+
+  redis-1:
+    image: redis:7.2-alpine
+    container_name: redis-1
+    ports:
+      - "7001:6379"
+    volumes:
+      - redis-data-1:/data
+      - ./redis-cluster.tmpl.conf:/usr/local/etc/redis/redis.conf
+    command: redis-server /usr/local/etc/redis/redis.conf
+    networks:
+      - redis-cluster-net
+
+  redis-2:
+    image: redis:7.2-alpine
+    container_name: redis-2
+    ports:
+      - "7002:6379"
+    volumes:
+      - redis-data-2:/data
+      - ./redis-cluster.tmpl.conf:/usr/local/etc/redis/redis.conf
+    command: redis-server /usr/local/etc/redis/redis.conf
+    networks:
+      - redis-cluster-net
+
+  redis-3:
+    image: redis:7.2-alpine
+    container_name: redis-3
+    ports:
+      - "7003:6379"
+    volumes:
+      - redis-data-3:/data
+      - ./redis-cluster.tmpl.conf:/usr/local/etc/redis/redis.conf
+    command: redis-server /usr/local/etc/redis/redis.conf
+    networks:
+      - redis-cluster-net
+
+networks:
+  redis-cluster-net:
+    driver: bridge
+
+volumes:
+  redis-data-1:
+  redis-data-2:
+  redis-data-3:

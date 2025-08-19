@@ -1,75 +1,243 @@
 use futures_channel::mpsc::{UnboundedSender, unbounded};
 pub use shared::native::{connect, receiver_task, sender_task};
-use shared::{ClientAction, TalkProtocol};
-use tokio::signal;
-use tokio::io::AsyncReadExt;
+use shared::{TalkProtocol};
+use std::sync::Arc;
+use std::sync::Mutex;
+
+use color_eyre::Result;
+use ratatui::{
+    DefaultTerminal, Frame,
+    crossterm::event::{self, Event, KeyCode, KeyEventKind},
+    layout::{Constraint, Layout, Position},
+    style::{Color, Modifier, Style, Stylize},
+    text::{Line, Span, Text},
+    widgets::{Block, List, ListItem, Paragraph},
+};
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+async fn main() -> Result<()> {
     let url = "ws://localhost:8080".to_string();
 
     let (tx, rx) = unbounded::<TalkProtocol>();
-
     let (write, read) = connect(url).await?;
-
+    let communication: Arc<Mutex<Vec<TalkProtocol>>> = Arc::new(Mutex::new(Vec::new()));
     tokio::spawn(sender_task(rx, write));
 
-    send_example_messages(tx.clone()).await;
-
-    tokio::spawn(receiver_task(read, |msg| {
-        println!("Received message: {:?}", msg);
+    let com = Arc::clone(&communication);
+    tokio::spawn(receiver_task(read, move |msg| {
+        com.lock().unwrap().push(msg);
     }));
 
-    tokio::spawn({
-        read_stdin(tx)
-    });
-
-    signal::ctrl_c().await?;
-    println!("Shutting down...");
-
-    Ok(())
+    color_eyre::install()?;
+    let terminal = ratatui::init();
+    let app_result = App::new(tx, communication).run(terminal);
+    ratatui::restore();
+    app_result
 }
 
-async fn read_stdin(tx: UnboundedSender<TalkProtocol>) {
-    let mut stdin = tokio::io::stdin();
-    loop {
-        let mut buf = vec![0; 1024];
-        let n = match stdin.read(&mut buf).await {
-            Err(_) | Ok(0) => break,
-            Ok(n) => n,
-        };
+fn send_message(tx: UnboundedSender<TalkProtocol>, communication_protocol: TalkProtocol) {
+    tx.unbounded_send(communication_protocol).unwrap();
+}
 
-        buf.truncate(n);
+struct App {
+    input: String,
+    character_index: usize,
+    input_mode: InputMode,
+    scroll: usize,
+    communication: Arc<Mutex<Vec<TalkProtocol>>>,
+    tx: UnboundedSender<TalkProtocol>,
+}
 
-        let stuff_str = String::from_utf8_lossy(&buf).to_string();
+enum InputMode {
+    Normal,
+    Editing,
+}
 
-        let msg = TalkProtocol {
-            username: "Stdin User".to_string(),
-            action: None,
-            room_id: 0,
-            unixtime: 1,
-            message: stuff_str
-        };
-        tx.unbounded_send(msg).unwrap();
+impl App {
+    const fn new(
+        transmit: UnboundedSender<TalkProtocol>,
+        com: Arc<Mutex<Vec<TalkProtocol>>>,
+    ) -> Self {
+        Self {
+            input: String::new(),
+            input_mode: InputMode::Normal,
+            communication: com,
+            scroll: 0,
+            character_index: 0,
+            tx: transmit,
+        }
     }
-}
 
-async fn send_example_messages(tx: UnboundedSender<TalkProtocol>) {
-    let msg1 = TalkProtocol {
-        username: "client".to_string(),
-        message: "Hello server and others!".to_string(),
-        action: None,
-        room_id: 0,
-        unixtime: 100,
-    };
-    tx.unbounded_send(msg1).unwrap();
+    fn move_cursor_left(&mut self) {
+        let cursor_moved_left = self.character_index.saturating_sub(1);
+        self.character_index = self.clamp_cursor(cursor_moved_left);
+    }
 
-    let msg2 = TalkProtocol {
-        username: "client".to_string(),
-        message: "I want to join room".to_string(),
-        action: Some(ClientAction::Join),
-        room_id: 42,
-        unixtime: 100,
-    };
-    tx.unbounded_send(msg2).unwrap();
+    fn move_cursor_right(&mut self) {
+        let cursor_moved_right = self.character_index.saturating_add(1);
+        self.character_index = self.clamp_cursor(cursor_moved_right);
+    }
+
+    fn enter_char(&mut self, new_char: char) {
+        let index = self.byte_index();
+        self.input.insert(index, new_char);
+        self.move_cursor_right();
+    }
+
+    fn byte_index(&self) -> usize {
+        self.input
+            .char_indices()
+            .map(|(i, _)| i)
+            .nth(self.character_index)
+            .unwrap_or(self.input.len())
+    }
+
+    fn delete_char(&mut self) {
+        let is_not_cursor_leftmost = self.character_index != 0;
+        if is_not_cursor_leftmost {
+            let current_index = self.character_index;
+            let from_left_to_current_index = current_index - 1;
+            let before_char_to_delete = self.input.chars().take(from_left_to_current_index);
+            let after_char_to_delete = self.input.chars().skip(current_index);
+
+            self.input = before_char_to_delete.chain(after_char_to_delete).collect();
+            self.move_cursor_left();
+        }
+    }
+
+    fn clamp_cursor(&self, new_cursor_pos: usize) -> usize {
+        new_cursor_pos.clamp(0, self.input.chars().count())
+    }
+
+    fn reset_cursor(&mut self) {
+        self.character_index = 0;
+    }
+
+    fn submit_message(&mut self) {
+        let com = TalkProtocol {
+            username: "Client".to_string(),
+            message: self.input.clone(),
+            action: None,
+            room_id: 1,
+            unixtime: 2,
+        };
+        send_message(self.tx.clone(), com.clone());
+        self.communication.lock().unwrap().push(com);
+
+        self.input.clear();
+        self.reset_cursor();
+    }
+
+    fn run(mut self, mut terminal: DefaultTerminal) -> Result<()> {
+        loop {
+            terminal.draw(|frame| self.draw(frame))?;
+
+            if let Event::Key(key) = event::read()? {
+                match self.input_mode {
+                    InputMode::Normal => match key.code {
+                        KeyCode::Char('i') => {
+                            self.input_mode = InputMode::Editing;
+                        }
+                        KeyCode::Char('q') => {
+                            return Ok(());
+                        }
+                        KeyCode::Char('k') => {
+                            if self.scroll + 1 < self.communication.lock().unwrap().len() {
+                                self.scroll += 1;
+                            }
+                        }
+                        KeyCode::Char('j') => {
+                            if self.scroll > 0 {
+                                self.scroll -= 1;
+                            }
+                        }
+                        _ => {}
+                    },
+                    InputMode::Editing if key.kind == KeyEventKind::Press => match key.code {
+                        KeyCode::Enter => self.submit_message(),
+                        KeyCode::Char(to_insert) => self.enter_char(to_insert),
+                        KeyCode::Backspace => self.delete_char(),
+                        KeyCode::Left => self.move_cursor_left(),
+                        KeyCode::Right => self.move_cursor_right(),
+                        KeyCode::Esc => self.input_mode = InputMode::Normal,
+                        _ => {}
+                    },
+                    InputMode::Editing => {}
+                }
+            }
+        }
+    }
+
+    fn draw(&mut self, frame: &mut Frame) {
+        let vertical = Layout::vertical([
+            Constraint::Length(1),
+            Constraint::Length(3),
+            Constraint::Min(1),
+        ]);
+        let [help_area, input_area, messages_area] = vertical.areas(frame.area());
+
+        let (msg, style) = match self.input_mode {
+            InputMode::Normal => (
+                vec![
+                    "Press ".into(),
+                    "q".bold(),
+                    " to exit, ".into(),
+                    "i".bold(),
+                    " to start editing.".bold(),
+                ],
+                Style::default().add_modifier(Modifier::RAPID_BLINK),
+            ),
+            InputMode::Editing => (
+                vec![
+                    "Press ".into(),
+                    "Esc".bold(),
+                    " to stop editing, ".into(),
+                    "Enter".bold(),
+                    " to record the message".into(),
+                ],
+                Style::default(),
+            ),
+        };
+        let text = Text::from(Line::from(msg)).patch_style(style);
+        let help_message = Paragraph::new(text);
+        frame.render_widget(help_message, help_area);
+
+        let input = Paragraph::new(self.input.as_str())
+            .style(match self.input_mode {
+                InputMode::Normal => Style::default(),
+                InputMode::Editing => Style::default().fg(Color::Yellow),
+            })
+            .block(Block::bordered().title("Input"));
+        frame.render_widget(input, input_area);
+        match self.input_mode {
+            InputMode::Normal => {}
+
+            #[allow(clippy::cast_possible_truncation)]
+            InputMode::Editing => frame.set_cursor_position(Position::new(
+                input_area.x + self.character_index as u16 + 1,
+                input_area.y + 1,
+            )),
+        }
+
+        let full_messages = self.communication.lock().unwrap();
+        let height = messages_area.height as usize;
+
+        if self.scroll > full_messages.len().saturating_sub(height - 2) {
+            self.scroll = full_messages.len().saturating_sub(height - 2);
+        }
+
+        let start = full_messages.len().saturating_sub(height - 2 + self.scroll);
+        let visible = &full_messages[start..];
+
+        let communication: Vec<ListItem> = visible
+            .iter()
+            .map(|m| {
+                let content = Line::from(Span::raw(format!("{}: {}", m.username, m.message)));
+                ListItem::new(content)
+            })
+            .collect();
+
+        let communication = List::new(communication).block(Block::bordered().title("Messages"));
+        frame.render_widget(communication, messages_area);
+    }
 }

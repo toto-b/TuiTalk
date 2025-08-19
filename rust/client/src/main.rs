@@ -35,7 +35,7 @@ async fn main() -> Result<()> {
     app_result
 }
 
-async fn send_message(tx: UnboundedSender<TalkProtocol>, communication_protocol: TalkProtocol) {
+fn send_message(tx: UnboundedSender<TalkProtocol>, communication_protocol: TalkProtocol) {
     tx.unbounded_send(communication_protocol).unwrap();
 }
 
@@ -121,7 +121,7 @@ impl App {
             room_id: 1,
             unixtime: 2,
         };
-        tokio::spawn(send_message(self.tx.clone(), com.clone()));
+        send_message(self.tx.clone(), com.clone());
         self.messages.lock().unwrap().push(com);
 
         self.input.clear();

@@ -1,8 +1,13 @@
 mod wsserver;
+use std::sync::Arc;
+
+use redis::Connection;
+use tokio::sync::Mutex;
+type SharedRedis = Arc<Mutex<Connection>>;
 
 #[tokio::main]
-async fn main() -> Result<(), std::io::Error> {
-    let server_handle = tokio::spawn(async {
+async fn main() -> redis::RedisResult<()> {
+    let server_handle = tokio::spawn(async move {
         wsserver::start_ws_server().await.expect("Server failed");
     });
 

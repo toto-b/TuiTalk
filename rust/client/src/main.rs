@@ -1,6 +1,10 @@
 use futures_channel::mpsc::{UnboundedSender, unbounded};
 pub use shared::native::{connect, receiver_task, sender_task};
-use shared::{TalkProtocol};
+use shared::{ClientAction, TalkProtocol};
+use tokio::signal;
+use tokio::io::AsyncReadExt;
+use uuid::Uuid;
+use std::env;
 use std::sync::Arc;
 use std::sync::Mutex;
 
@@ -14,9 +18,10 @@ use ratatui::{
     widgets::{Block, List, ListItem, Paragraph},
 };
 
+
 #[tokio::main]
-async fn main() -> Result<()> {
-    let url = "ws://localhost:8080".to_string();
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let url = env::args().nth(1).unwrap_or_else(|| "ws://0.0.0.0:8080".to_string());
 
     let (tx, rx) = unbounded::<TalkProtocol>();
     let (write, read) = connect(url).await?;
@@ -115,11 +120,13 @@ impl App {
 
     fn submit_message(&mut self) {
         let com = TalkProtocol {
+            uuid : Uuid::new_v4(),
             username: "Client".to_string(),
-            message: self.input.clone(),
-            action: None,
+            message: Some(self.input.clone()),
+            action: Send,
             room_id: 1,
             unixtime: 2,
+
         };
         send_message(self.tx.clone(), com.clone());
         self.communication.lock().unwrap().push(com);
@@ -240,4 +247,5 @@ impl App {
         let communication = List::new(communication).block(Block::bordered().title("Messages"));
         frame.render_widget(communication, messages_area);
     }
+
 }

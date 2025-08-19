@@ -1,10 +1,13 @@
 use futures_channel::mpsc::{UnboundedSender, unbounded};
 pub use shared::native::{connect, receiver_task, sender_task};
-use shared::{ClientAction::{Send,Join,Leave}, TalkProtocol};
-use uuid::Uuid;
+use shared::{
+    ClientAction::{Join, Leave, Send},
+    TalkProtocol,
+};
 use std::env;
 use std::sync::Arc;
 use std::sync::Mutex;
+use uuid::Uuid;
 
 use color_eyre::Result;
 use ratatui::{
@@ -15,11 +18,13 @@ use ratatui::{
     text::{Line, Span, Text},
     widgets::{Block, List, ListItem, Paragraph},
 };
-
+use std::time::{Duration, Instant};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let url = env::args().nth(1).unwrap_or_else(|| "ws://0.0.0.0:8080".to_string());
+    let url = env::args()
+        .nth(1)
+        .unwrap_or_else(|| "ws://0.0.0.0:8080".to_string());
 
     let (tx, rx) = unbounded::<TalkProtocol>();
     let (write, read) = connect(url).await?;
@@ -118,56 +123,62 @@ impl App {
 
     fn submit_message(&mut self) {
         let com = TalkProtocol {
-            uuid : Uuid::new_v4(),
+            uuid: Uuid::new_v4(),
             username: "Client".to_string(),
             message: Some(self.input.clone()),
             action: Send,
             room_id: 1,
             unixtime: 2,
-
         };
         send_message(self.tx.clone(), com.clone());
-        self.communication.lock().unwrap().push(com);
 
         self.input.clear();
         self.reset_cursor();
     }
 
     fn run(mut self, mut terminal: DefaultTerminal) -> Result<()> {
+        let tick_rate = Duration::from_millis(100);
+        let mut last_tick = Instant::now();
         loop {
             terminal.draw(|frame| self.draw(frame))?;
 
-            if let Event::Key(key) = event::read()? {
-                match self.input_mode {
-                    InputMode::Normal => match key.code {
-                        KeyCode::Char('i') => {
-                            self.input_mode = InputMode::Editing;
-                        }
-                        KeyCode::Char('q') => {
-                            return Ok(());
-                        }
-                        KeyCode::Char('k') => {
-                            if self.scroll + 1 < self.communication.lock().unwrap().len() {
-                                self.scroll += 1;
+            let timeout = tick_rate
+                .checked_sub(last_tick.elapsed())
+                .unwrap_or(Duration::from_secs(0));
+
+            if event::poll(timeout)? {
+                if let Event::Key(key) = event::read()? {
+                    match self.input_mode {
+                        InputMode::Normal => match key.code {
+                            KeyCode::Char('i') => {
+                                self.input_mode = InputMode::Editing;
                             }
-                        }
-                        KeyCode::Char('j') => {
-                            if self.scroll > 0 {
-                                self.scroll -= 1;
+                            KeyCode::Char('q') => {
+                                return Ok(());
                             }
-                        }
-                        _ => {}
-                    },
-                    InputMode::Editing if key.kind == KeyEventKind::Press => match key.code {
-                        KeyCode::Enter => self.submit_message(),
-                        KeyCode::Char(to_insert) => self.enter_char(to_insert),
-                        KeyCode::Backspace => self.delete_char(),
-                        KeyCode::Left => self.move_cursor_left(),
-                        KeyCode::Right => self.move_cursor_right(),
-                        KeyCode::Esc => self.input_mode = InputMode::Normal,
-                        _ => {}
-                    },
-                    InputMode::Editing => {}
+                            KeyCode::Char('k') => {
+                                if self.scroll + 1 < self.communication.lock().unwrap().len() {
+                                    self.scroll += 1;
+                                }
+                            }
+                            KeyCode::Char('j') => {
+                                if self.scroll > 0 {
+                                    self.scroll -= 1;
+                                }
+                            }
+                            _ => {}
+                        },
+                        InputMode::Editing if key.kind == KeyEventKind::Press => match key.code {
+                            KeyCode::Enter => self.submit_message(),
+                            KeyCode::Char(to_insert) => self.enter_char(to_insert),
+                            KeyCode::Backspace => self.delete_char(),
+                            KeyCode::Left => self.move_cursor_left(),
+                            KeyCode::Right => self.move_cursor_right(),
+                            KeyCode::Esc => self.input_mode = InputMode::Normal,
+                            _ => {}
+                        },
+                        InputMode::Editing => {}
+                    }
                 }
             }
         }
@@ -237,7 +248,11 @@ impl App {
         let communication: Vec<ListItem> = visible
             .iter()
             .map(|m| {
-                let content = Line::from(Span::raw(format!("{}: {}", m.username, m.message.clone().expect("Message in Option"))));
+                let content = Line::from(Span::raw(format!(
+                    "{}: {}",
+                    m.username,
+                    m.message.clone().expect("Message in Option")
+                )));
                 ListItem::new(content)
             })
             .collect();
@@ -245,5 +260,4 @@ impl App {
         let communication = List::new(communication).block(Block::bordered().title("Messages"));
         frame.render_widget(communication, messages_area);
     }
-
 }

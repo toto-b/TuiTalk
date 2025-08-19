@@ -1,8 +1,6 @@
 use futures_channel::mpsc::{UnboundedSender, unbounded};
 pub use shared::native::{connect, receiver_task, sender_task};
-use shared::{ClientAction, TalkProtocol};
-use tokio::signal;
-use tokio::io::AsyncReadExt;
+use shared::{ClientAction::{Send,Join,Leave}, TalkProtocol};
 use uuid::Uuid;
 use std::env;
 use std::sync::Arc;
@@ -37,7 +35,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let terminal = ratatui::init();
     let app_result = App::new(tx, communication).run(terminal);
     ratatui::restore();
-    app_result
+    Ok(app_result?)
 }
 
 fn send_message(tx: UnboundedSender<TalkProtocol>, communication_protocol: TalkProtocol) {
@@ -239,7 +237,7 @@ impl App {
         let communication: Vec<ListItem> = visible
             .iter()
             .map(|m| {
-                let content = Line::from(Span::raw(format!("{}: {}", m.username, m.message)));
+                let content = Line::from(Span::raw(format!("{}: {}", m.username, m.message.clone().expect("Message in Option"))));
                 ListItem::new(content)
             })
             .collect();

@@ -1,66 +1,101 @@
 use futures_channel::mpsc::{UnboundedSender, unbounded};
 use futures_util::{SinkExt, StreamExt, future, pin_mut, stream::TryStreamExt};
-use redis::{aio::PubSub, Commands, Connection};
+use redis::cluster_async::ClusterConnection as ClusterConnectionAsync;
+use redis::{
+    Commands, Connection, PushInfo,
+    aio::PubSub,
+    cluster::{ClusterClient, ClusterClientBuilder, ClusterConnection},
+};
+use redis::{from_owned_redis_value, from_redis_value, Value};
 use shared::{
     ClientAction::{Join, Leave, Send},
     TalkProtocol,
 };
-use std::{
-    env,
-    net::SocketAddr,
-    sync::{Arc},
-};
-use tokio::sync::Mutex as TMutex;
+use std::{env, net::SocketAddr, sync::Arc};
+use tokio::sync::{Mutex as TMutex, mpsc::UnboundedReceiver as TUnboundedReceiver};
 use tokio::{
     net::{TcpListener, TcpStream},
     runtime::Handle,
 };
 use tokio_tungstenite::tungstenite::protocol::Message;
 
-type SharedRedis = Arc<TMutex<Connection>>;
+type SharedRedis = Arc<TMutex<ClusterConnection>>;
 
-pub async fn create_redis_async_pubsub_connection() -> Result<PubSub, redis::RedisError> {
-    let client = redis::Client::open("redis://0.0.0.0/")?;
-    let publish_conn = client.get_async_pubsub().await.expect("Async Connection");
-    Ok(publish_conn)
+pub async fn create_redis_async_pubsub_connection()
+-> Result<(ClusterConnectionAsync, TUnboundedReceiver<PushInfo>), redis::RedisError> {
+    let nodes = vec![
+        "redis://0.0.0.0:7001/?protocol=3",
+        "redis://0.0.0.0:7002/?protocol=3",
+        "redis://0.0.0.0:7003/?protocol=3",
+    ];
+    // let client = ClusterClient::new(nodes).unwrap();
+    // let publish_conn =  client.get_async_connection().await.unwrap();
+
+    let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
+    let client = ClusterClientBuilder::new(nodes)
+        .use_protocol(redis::ProtocolVersion::RESP3)
+        .push_sender(tx)
+        .build()?;
+
+    let connection = client
+        .get_async_connection()
+        .await
+        .expect("Async Cluster Connection");
+
+    Ok((connection, rx))
 }
 
-pub async fn create_redis_connection() -> Result<Connection, redis::RedisError> {
-    let client = redis::Client::open("redis://0.0.0.0/")?;
+pub async fn create_redis_connection() -> Result<ClusterConnection, redis::RedisError> {
+    let nodes = vec![
+        "redis://0.0.0.0:7001/",
+        "redis://0.0.0.0:7002/",
+        "redis://0.0.0.0:7003/",
+    ];
+    let client = ClusterClient::new(nodes).unwrap();
     let publish_conn = client.get_connection().expect("Redis Connection");
     Ok(publish_conn)
 }
 
+fn extract_binary_payload_from_pmessage(data: Vec<Value>) -> Option<Vec<u8>> {
+    // PMessage data format: [pattern, channel, binary_payload]
+    if data.len() >= 3 {
+        if let Value::BulkString(binary_data) = &data[2] {
+            return Some(binary_data.clone());
+        }
+    }
+    None
+}
+
 pub async fn subscribe_to_redis(mut tx: UnboundedSender<Message>) {
     let r = create_redis_async_pubsub_connection().await;
-    let mut pubsub = r.expect("Pubusb Connection");
+    let (mut con, mut rx) = r.expect("Pubusb Connection");
 
+    let _ = con.psubscribe("*").await;
     // Subscribe to all channels for testing
-    let _ = pubsub.psubscribe("*").await;
-
-    loop {
-        let redis_msg = pubsub.on_message().next().await;
-        if let Some(message) = redis_msg {
-            let channel = message.get_channel_name();
-            let payload: Vec<u8> = message.get_payload().expect("Binary payload");
-
-            if let Ok(deserialized) = bincode::deserialize::<TalkProtocol>(&payload) {
-                println!("[REDIS] Received on channel={}: {:?}", channel, deserialized);
-                let _ = tx
-                    .send(Message::Binary(deserialized.serialize().unwrap().into()))
+    while let Some(message) = rx.recv().await {
+        println!("[REDIS] type {:?}", message);
+        match message.kind {
+            redis::PushKind::PMessage => {
+                let payload: Vec<u8> = extract_binary_payload_from_pmessage(message.data).unwrap();
+                if let Ok(deserialized) = bincode::deserialize::<TalkProtocol>(&payload) {
+                    println!(
+                        "[REDIS] Received  {:?}",
+                        deserialized
+                    );
+                    let _ = tx
+                        .send(Message::Binary(deserialized.serialize().unwrap().into()))
                     .await;
-            } else {
-                eprintln!("Failed to deserialize message from Redis");
+                } else {
+                    eprintln!("Failed to deserialize message from Redis");
+                }
             }
+            _ => println!("other")
         }
+
     }
 }
 
-pub async fn handle_connection(
-    raw_stream: TcpStream,
-    addr: SocketAddr,
-    shared_redis: SharedRedis,
-) {
+pub async fn handle_connection(raw_stream: TcpStream, addr: SocketAddr, shared_redis: SharedRedis) {
     println!("Incoming TCP connection from: {}", addr);
 
     let ws_stream = tokio_tungstenite::accept_async(raw_stream)
@@ -112,8 +147,6 @@ pub async fn handle_connection(
         let action = &deserialize_msg.action;
 
         if *action == Send {
-            println!("Received send action");
-
             // Publish to Redis
             let sr_clone = Arc::clone(&shared_redis);
             let msg_clone = deserialize_msg.clone();
@@ -154,7 +187,9 @@ pub async fn start_ws_server() -> Result<(), std::io::Error> {
 
     println!("Listening on: {}", addr);
 
-    let redis_con = create_redis_connection().await.expect("Redis connection failed");
+    let redis_con = create_redis_connection()
+        .await
+        .expect("Redis connection failed");
     let shared_con: SharedRedis = Arc::new(TMutex::new(redis_con));
 
     while let Ok((stream, addr)) = listener.accept().await {

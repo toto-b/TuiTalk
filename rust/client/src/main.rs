@@ -138,9 +138,9 @@ impl App {
 
     fn run(mut self, mut terminal: DefaultTerminal) -> Result<()> {
         let tick_rate = Duration::from_millis(100);
-        let mut last_tick = Instant::now();
         loop {
             terminal.draw(|frame| self.draw(frame))?;
+            let last_tick = Instant::now();
 
             let timeout = tick_rate
                 .checked_sub(last_tick.elapsed())

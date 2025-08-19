@@ -49,16 +49,6 @@ services:
     image: redis:latest
     ports:
       - "6379:6379"
-  tuitalk_redis_1:
-    container_name: redis_1
-    image: redis:latest
-    ports:
-      - "6380:6379"
-  tuitalk_redis_2:
-    container_name: redis_2
-    image: redis:latest
-    ports:
-      - "6381:6379"
 
 networks:
   loadbalancing:

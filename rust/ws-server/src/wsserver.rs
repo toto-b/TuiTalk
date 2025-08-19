@@ -1,15 +1,14 @@
 use futures_channel::mpsc::{UnboundedSender, unbounded};
 use futures_util::{SinkExt, StreamExt, future, pin_mut, stream::TryStreamExt};
-use redis::{aio::PubSub, Client, Commands, Connection, PubSubCommands, RedisResult, ToRedisArgs};
+use redis::{aio::PubSub, Commands, Connection};
 use shared::{
     ClientAction::{Join, Leave, Send},
     TalkProtocol,
 };
 use std::{
-    collections::HashMap,
     env,
     net::SocketAddr,
-    sync::{Arc, Mutex},
+    sync::{Arc},
 };
 use tokio::sync::Mutex as TMutex;
 use tokio::{
@@ -19,9 +18,6 @@ use tokio::{
 use tokio_tungstenite::tungstenite::protocol::Message;
 
 type SharedRedis = Arc<TMutex<Connection>>;
-type Tx = UnboundedSender<Message>;
-type PeerMap = Arc<Mutex<HashMap<SocketAddr, Tx>>>;
-type ClientList = Arc<TMutex<Vec<SocketAddr>>>;
 
 pub async fn create_redis_async_connection() -> Result<PubSub, redis::RedisError> {
     let client = redis::Client::open("redis://0.0.0.0/")?;
@@ -35,12 +31,12 @@ pub async fn create_redis_connection() -> Result<Connection, redis::RedisError> 
     Ok(publish_conn)
 }
 
-pub async fn subscribe_to_redis(clients: ClientList, mut tx: UnboundedSender<Message>) {
+pub async fn subscribe_to_redis(mut tx: UnboundedSender<Message>) {
     let r = create_redis_async_connection().await;
     let mut pubsub = r.expect("Pubusb Connection");
 
     // Subscribe to all channels for testing
-    pubsub.psubscribe("*").await;
+    let _ = pubsub.psubscribe("*").await;
 
     loop {
         let redis_msg = pubsub.on_message().next().await;
@@ -49,12 +45,10 @@ pub async fn subscribe_to_redis(clients: ClientList, mut tx: UnboundedSender<Mes
             let payload: Vec<u8> = message.get_payload().expect("Binary payload");
 
             if let Ok(deserialized) = bincode::deserialize::<TalkProtocol>(&payload) {
-                println!("[REDIS] Received on {}: {:?}", channel, deserialized);
+                println!("[REDIS] Received on channel={}: {:?}", channel, deserialized);
                 let _ = tx
                     .send(Message::Binary(deserialized.serialize().unwrap().into()))
                     .await;
-
-                // Broadcast to all connected clients
             } else {
                 eprintln!("Failed to deserialize message from Redis");
             }
@@ -63,7 +57,6 @@ pub async fn subscribe_to_redis(clients: ClientList, mut tx: UnboundedSender<Mes
 }
 
 pub async fn handle_connection(
-    clients: ClientList,
     raw_stream: TcpStream,
     addr: SocketAddr,
     shared_redis: SharedRedis,
@@ -79,9 +72,8 @@ pub async fn handle_connection(
 
     let (outgoing, incoming) = ws_stream.split();
 
-    let sub_peers = clients.clone();
     tokio::spawn(async move {
-        subscribe_to_redis(sub_peers, tx).await;
+        subscribe_to_redis(tx).await;
     });
 
     let process_msg = incoming.try_for_each(|msg| {
@@ -150,7 +142,6 @@ pub async fn handle_connection(
     future::select(process_msg, receive_from_redis).await;
 
     println!("{} disconnected", &addr);
-    //TODO remove client from list
 }
 
 pub async fn start_ws_server() -> Result<(), std::io::Error> {
@@ -165,11 +156,10 @@ pub async fn start_ws_server() -> Result<(), std::io::Error> {
 
     let redis_con = create_redis_connection().await.expect("Redis connection failed");
     let shared_con: SharedRedis = Arc::new(TMutex::new(redis_con));
-    let clients: Arc<TMutex<Vec<SocketAddr>>> = Arc::new(TMutex::new(Vec::new()));
 
     while let Ok((stream, addr)) = listener.accept().await {
         let rd_clone = Arc::clone(&shared_con);
-        tokio::spawn(handle_connection(clients.clone(), stream, addr, rd_clone));
+        tokio::spawn(handle_connection(stream, addr, rd_clone));
 
         let metrics = Handle::current().metrics();
 

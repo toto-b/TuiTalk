@@ -6,7 +6,7 @@ use redis::{
     aio::PubSub,
     cluster::{ClusterClient, ClusterClientBuilder, ClusterConnection},
 };
-use redis::{from_owned_redis_value, from_redis_value, Value};
+use redis::{Value, from_owned_redis_value, from_redis_value};
 use shared::{
     ClientAction::{Join, Leave, Send},
     TalkProtocol,
@@ -29,8 +29,6 @@ pub async fn create_redis_async_pubsub_connection()
         .split(',')
         .map(|s| format!("redis://{}/?protocol=3", s))
         .collect();
-    // let client = ClusterClient::new(nodes).unwrap();
-    // let publish_conn =  client.get_async_connection().await.unwrap();
 
     let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
     let client = ClusterClientBuilder::new(node_urls)
@@ -49,10 +47,7 @@ pub async fn create_redis_async_pubsub_connection()
 pub async fn create_redis_connection() -> Result<ClusterConnection, redis::RedisError> {
     let nodes = env::var("REDIS_NODES")
         .unwrap_or_else(|_| "localhost:7001,localhost:7002,localhost:7003".to_string());
-    let node_urls: Vec<String> = nodes
-        .split(',')
-        .map(|s| format!("redis://{}", s))
-        .collect();
+    let node_urls: Vec<String> = nodes.split(',').map(|s| format!("redis://{}", s)).collect();
 
     let client = ClusterClient::new(node_urls).unwrap();
     let publish_conn = client.get_connection().expect("Redis Connection");
@@ -81,20 +76,16 @@ pub async fn subscribe_to_redis(mut tx: UnboundedSender<Message>) {
             redis::PushKind::PMessage => {
                 let payload: Vec<u8> = extract_binary_payload_from_pmessage(message.data).unwrap();
                 if let Ok(deserialized) = bincode::deserialize::<TalkProtocol>(&payload) {
-                    println!(
-                        "[REDIS] Received  {:?}",
-                        deserialized
-                    );
+                    println!("[REDIS] Received  {:?}", deserialized);
                     let _ = tx
                         .send(Message::Binary(deserialized.serialize().unwrap().into()))
-                    .await;
+                        .await;
                 } else {
                     eprintln!("Failed to deserialize message from Redis");
                 }
             }
-            _ => println!("other")
+            _ => println!("other"),
         }
-
     }
 }
 

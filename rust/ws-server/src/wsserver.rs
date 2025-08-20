@@ -23,16 +23,17 @@ type SharedRedis = Arc<TMutex<ClusterConnection>>;
 
 pub async fn create_redis_async_pubsub_connection()
 -> Result<(ClusterConnectionAsync, TUnboundedReceiver<PushInfo>), redis::RedisError> {
-    let nodes = vec![
-        "redis://0.0.0.0:7001/?protocol=3",
-        "redis://0.0.0.0:7002/?protocol=3",
-        "redis://0.0.0.0:7003/?protocol=3",
-    ];
+    let nodes = env::var("REDIS_NODES")
+        .unwrap_or_else(|_| "localhost:7001,localhost:7002,localhost:7003".to_string());
+    let node_urls: Vec<String> = nodes
+        .split(',')
+        .map(|s| format!("redis://{}/?protocol=3", s))
+        .collect();
     // let client = ClusterClient::new(nodes).unwrap();
     // let publish_conn =  client.get_async_connection().await.unwrap();
 
     let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
-    let client = ClusterClientBuilder::new(nodes)
+    let client = ClusterClientBuilder::new(node_urls)
         .use_protocol(redis::ProtocolVersion::RESP3)
         .push_sender(tx)
         .build()?;
@@ -46,12 +47,14 @@ pub async fn create_redis_async_pubsub_connection()
 }
 
 pub async fn create_redis_connection() -> Result<ClusterConnection, redis::RedisError> {
-    let nodes = vec![
-        "redis://0.0.0.0:7001/",
-        "redis://0.0.0.0:7002/",
-        "redis://0.0.0.0:7003/",
-    ];
-    let client = ClusterClient::new(nodes).unwrap();
+    let nodes = env::var("REDIS_NODES")
+        .unwrap_or_else(|_| "localhost:7001,localhost:7002,localhost:7003".to_string());
+    let node_urls: Vec<String> = nodes
+        .split(',')
+        .map(|s| format!("redis://{}", s))
+        .collect();
+
+    let client = ClusterClient::new(node_urls).unwrap();
     let publish_conn = client.get_connection().expect("Redis Connection");
     Ok(publish_conn)
 }

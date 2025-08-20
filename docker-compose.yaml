@@ -12,26 +12,44 @@ services:
   tuitalk_backend_0:
     container_name: backend_0
     build: rust
+    environment:
+      - REDIS_NODES=redis-1:6379,redis-2:6379,redis-3:6379
     networks:
       - loadbalancing
     ports:
       - "8080:8080"
+    depends_on:
+      - redis-node-1
+      - redis-node-2
+      - redis-node-3
 
   tuitalk_backend_1:
     container_name: backend_1
     build: rust
+    environment:
+      - REDIS_NODES=redis-1:6379,redis-2:6379,redis-3:6379
     networks:
       - loadbalancing
     ports:
       - "8081:8080"
+    depends_on:
+      - redis-node-1
+      - redis-node-2
+      - redis-node-3
 
   tuitalk_backend_2:
     container_name: backend_2
     build: rust
+    environment:
+      - REDIS_NODES=redis-1:6379,redis-2:6379,redis-3:6379
     networks:
       - loadbalancing
     ports:
       - "8082:8080"
+    depends_on:
+      - redis-node-1
+      - redis-node-2
+      - redis-node-3
 
   loadbalancer:
     build: loadbalancer
@@ -44,12 +62,59 @@ services:
       - tuitalk_backend_0
       - tuitalk_backend_1
       - tuitalk_backend_2
-  tuitalk_redis_0:
-    container_name: redis_0
-    image: redis:latest
+
+  redis-cluster-init:
+    build: redis-cluster
+    container_name: redis-cluster-init
+    networks:
+      - loadbalancing
+    depends_on:
+      - redis-node-1
+      - redis-node-2
+      - redis-node-3
+    command: >
+      sh -c "
+      sleep 10;
+      echo 'yes' | redis-cli --cluster create redis-1:6379 redis-2:6379 redis-3:6379 --cluster-replicas 0;
+      "
+  redis-node-1:
+    build: redis-cluster
+    container_name: redis-1
     ports:
-      - "6379:6379"
+      - "7001:6379"
+    volumes:
+      - redis-data-1:/data
+    command: redis-server /usr/local/etc/redis/redis.conf
+    networks:
+      - loadbalancing
+
+  redis-node-2:
+    build: redis-cluster
+    container_name: redis-2
+    ports:
+      - "7002:6379"
+    volumes:
+      - redis-data-2:/data
+    command: redis-server /usr/local/etc/redis/redis.conf
+    networks:
+      - loadbalancing
+
+  redis-node-3:
+    build: redis-cluster
+    container_name: redis-3
+    ports:
+      - "7003:6379"
+    volumes:
+      - redis-data-3:/data
+    command: redis-server /usr/local/etc/redis/redis.conf
+    networks:
+      - loadbalancing
 
 networks:
   loadbalancing:
     driver: bridge
+
+volumes:
+  redis-data-1:
+  redis-data-2:
+  redis-data-3:

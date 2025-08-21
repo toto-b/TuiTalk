@@ -87,10 +87,9 @@ impl App {
     }
 
     fn submit_message(&mut self) {
-        let com = command::parse(self);
+        command::parse(self);
         self.input.clear();
         self.reset_cursor();
-        self.tx.unbounded_send(com).unwrap();
     }
 
     pub fn run(mut self, mut terminal: DefaultTerminal) -> Result<()> {

@@ -1,13 +1,15 @@
 # version: '3.3'
 services:
-  mariadb:
+  postgresdb:
     build: db
     restart: always
     environment:
-      MYSQL_DATABASE: exampledb
-      MYSQL_USER: exampleuser
-      MYSQL_PASSWORD: examplepass
-      MYSQL_RANDOM_ROOT_PASSWORD: '1'
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=tuidb
+    volumes:
+      - tui_pg_volume:/var/lib/postgresql/data
+      
 
   tuitalk_backend_0:
     container_name: backend_0
@@ -118,3 +120,4 @@ volumes:
   redis-data-1:
   redis-data-2:
   redis-data-3:
+  tui_pg_volume:

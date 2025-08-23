@@ -62,6 +62,8 @@ fn parse_command(app: &mut app::App) {
         com.username = "Broadcast".to_string();
         com.message = Some(app.input.to_string());
         app.tx.unbounded_send(com).unwrap();
+    } else if app.input.starts_with("clear") {
+        app.communication.lock().unwrap().clear();
     } else {
         com.username = "Error".to_string();
         let message = format!("The command '{}' does not exist", app.input);

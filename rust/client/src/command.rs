@@ -1,5 +1,5 @@
 use crate::app;
-use shared::{ClientAction::Send, TalkProtocol};
+use shared::{ClientAction::Send, ClientAction::Leave, TalkProtocol};
 use std::time::{SystemTime, UNIX_EPOCH};
 use uuid::Uuid;
 
@@ -36,10 +36,15 @@ fn parse_command(app: &mut app::App) {
         room_id: app.room,
         unixtime: get_unix_timestamp(),
     };
+
     if app.input.starts_with("name") {
         app.input = app.input.trim_start_matches("name ").trim().to_string();
+
+        let old_username = app.username.to_string();
         app.username = app.input.to_string();
-        let message = format!("changed his name to '{}'", app.username);
+        let message = format!("{} changed his name to '{}'", old_username, app.username);
+
+        com.username = "Info".to_string();
         com.message = Some(message.to_string());
         app.tx.unbounded_send(com).unwrap();
     } else if app.input.starts_with("room") {
@@ -47,7 +52,8 @@ fn parse_command(app: &mut app::App) {
         match app.input.parse::<i32>() {
             Ok(number) => {
                 app.room = number;
-                let message = format!("changed to room {}", app.room);
+                let message = format!("{} changed to room {}", app.username, app.room);
+                com.username = "Info".to_string();
                 com.message = Some(message.to_string());
                 app.tx.unbounded_send(com).unwrap();
             }
@@ -64,6 +70,12 @@ fn parse_command(app: &mut app::App) {
         app.tx.unbounded_send(com).unwrap();
     } else if app.input.starts_with("clear") {
         app.communication.lock().unwrap().clear();
+    } else if app.input.starts_with("quit") {
+        com.username = "Info".to_string();
+        let message = format!("{} left the Chat", app.username);
+        com.message = Some(message.to_string());
+        com.action = Leave;
+        app.tx.unbounded_send(com).unwrap();
     } else {
         com.username = "Error".to_string();
         let message = format!("The command '{}' does not exist", app.input);

@@ -110,6 +110,8 @@ impl App {
                                 self.input_mode = InputMode::Editing;
                             }
                             KeyCode::Char('q') => {
+                                self.input = "/quit".to_string();
+                                command::parse(&mut self);
                                 return Ok(());
                             }
                             KeyCode::Char('k') => {

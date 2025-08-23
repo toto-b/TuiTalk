@@ -1,6 +1,10 @@
 use crate::app;
-use shared::{ClientAction::Send, ClientAction::Leave, TalkProtocol};
-use std::time::{SystemTime, UNIX_EPOCH};
+use crossterm::terminal::disable_raw_mode;
+use shared::{ClientAction::Leave, ClientAction::Send, TalkProtocol};
+use std::{
+    process,
+    time::{SystemTime, UNIX_EPOCH},
+};
 use uuid::Uuid;
 
 fn get_unix_timestamp() -> u64 {
@@ -39,11 +43,9 @@ fn parse_command(app: &mut app::App) {
 
     if app.input.starts_with("name") {
         app.input = app.input.trim_start_matches("name ").trim().to_string();
-
         let old_username = app.username.to_string();
         app.username = app.input.to_string();
         let message = format!("{} changed his name to '{}'", old_username, app.username);
-
         com.username = "Info".to_string();
         com.message = Some(message.to_string());
         app.tx.unbounded_send(com).unwrap();
@@ -68,9 +70,9 @@ fn parse_command(app: &mut app::App) {
         com.username = "Broadcast".to_string();
         com.message = Some(app.input.to_string());
         app.tx.unbounded_send(com).unwrap();
-    } else if app.input.starts_with("clear") {
+    } else if app.input == "clear" {
         app.communication.lock().unwrap().clear();
-    } else if app.input.starts_with("quit") {
+    } else if app.input == "quit" {
         com.username = "Info".to_string();
         let message = format!("{} left the Chat", app.username);
         com.message = Some(message.to_string());

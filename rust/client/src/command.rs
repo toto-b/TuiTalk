@@ -7,7 +7,7 @@ use std::{
 };
 use uuid::Uuid;
 
-fn get_unix_timestamp() -> u64 {
+pub fn get_unix_timestamp() -> u64 {
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .expect("unixtime");
@@ -72,12 +72,6 @@ fn parse_command(app: &mut app::App) {
         app.tx.unbounded_send(com).unwrap();
     } else if app.input == "clear" {
         app.communication.lock().unwrap().clear();
-    } else if app.input == "quit" {
-        com.username = "Info".to_string();
-        let message = format!("{} left the Chat", app.username);
-        com.message = Some(message.to_string());
-        com.action = Leave;
-        app.tx.unbounded_send(com).unwrap();
     } else {
         com.username = "Error".to_string();
         let message = format!("The command '{}' does not exist", app.input);

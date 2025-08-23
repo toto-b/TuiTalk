@@ -4,9 +4,11 @@ use color_eyre::Result;
 use futures_channel::mpsc::UnboundedSender;
 use ratatui::DefaultTerminal;
 use ratatui::crossterm::event::{self, Event, KeyCode, KeyEventKind};
-use shared::{ClientAction::Send, TalkProtocol};
+use shared::{ClientAction::Send, ClientAction::Leave, TalkProtocol};
 use std::sync::{Arc, Mutex};
+use std::thread::sleep;
 use std::time::{Duration, Instant};
+use uuid::Uuid;
 
 pub struct App {
     pub input: String,
@@ -110,8 +112,16 @@ impl App {
                                 self.input_mode = InputMode::Editing;
                             }
                             KeyCode::Char('q') => {
-                                self.input = "/quit".to_string();
-                                command::parse(&mut self);
+                                let message = format!("{} left the Chat", self.username);
+                                let com = TalkProtocol {
+                                    uuid: Uuid::new_v4(),
+                                    username: "Info".to_string(),
+                                    message: Some(message.to_string()),
+                                    action: Leave,
+                                    room_id: self.room,
+                                    unixtime: command::get_unix_timestamp(),
+                                };
+                                self.tx.unbounded_send(com).unwrap();
                                 return Ok(());
                             }
                             KeyCode::Char('k') => {

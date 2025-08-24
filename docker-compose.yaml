@@ -3,19 +3,26 @@ services:
   postgresdb:
     build: db
     restart: always
+    ports:
+      - "5432:5432"
     environment:
       - POSTGRES_USER=${POSTGRES_USER}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-      - POSTGRES_DB=tuidb
+      - POSTGRES_DB=${POSTGRES_DB}
     volumes:
       - tui_pg_volume:/var/lib/postgresql/data
-      
+    networks:
+      - loadbalancing
 
   tuitalk_backend_0:
     container_name: backend_0
     build: rust
     environment:
       - REDIS_NODES=redis-1:6379,redis-2:6379,redis-3:6379
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB}
+      - POSTGRES_HOST=${POSTGRES_HOST}
     networks:
       - loadbalancing
     ports:
@@ -24,12 +31,17 @@ services:
       - redis-node-1
       - redis-node-2
       - redis-node-3
+      - postgresdb
 
   tuitalk_backend_1:
     container_name: backend_1
     build: rust
     environment:
       - REDIS_NODES=redis-1:6379,redis-2:6379,redis-3:6379
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB}
+      - POSTGRES_HOST=${POSTGRES_HOST}
     networks:
       - loadbalancing
     ports:
@@ -38,12 +50,17 @@ services:
       - redis-node-1
       - redis-node-2
       - redis-node-3
+      - postgresdb
 
   tuitalk_backend_2:
     container_name: backend_2
     build: rust
     environment:
       - REDIS_NODES=redis-1:6379,redis-2:6379,redis-3:6379
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB}
+      - POSTGRES_HOST=${POSTGRES_HOST}
     networks:
       - loadbalancing
     ports:
@@ -52,6 +69,7 @@ services:
       - redis-node-1
       - redis-node-2
       - redis-node-3
+      - postgresdb
 
   loadbalancer:
     build: loadbalancer

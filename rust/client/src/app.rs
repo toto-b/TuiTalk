@@ -1,12 +1,13 @@
+use crate::command;
 use crate::ui;
 use color_eyre::Result;
 use futures_channel::mpsc::UnboundedSender;
 use ratatui::DefaultTerminal;
 use ratatui::crossterm::event::{self, Event, KeyCode, KeyEventKind};
-use shared::{ClientAction::Send, TalkProtocol};
+use shared::{ClientAction::Send, ClientAction::Leave, TalkProtocol};
 use std::sync::{Arc, Mutex};
+use std::thread::sleep;
 use std::time::{Duration, Instant};
-use std::time::{SystemTime, UNIX_EPOCH};
 use uuid::Uuid;
 
 pub struct App {
@@ -16,6 +17,8 @@ pub struct App {
     pub scroll: usize,
     pub communication: Arc<Mutex<Vec<TalkProtocol>>>,
     pub tx: UnboundedSender<TalkProtocol>,
+    pub username: String,
+    pub room: i32,
 }
 
 pub enum InputMode {
@@ -23,15 +26,8 @@ pub enum InputMode {
     Editing,
 }
 
-fn get_unix_timestamp() -> u64 {
-    let now = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .expect("unixtime");
-    now.as_secs()
-}
-
 impl App {
-    pub const fn new(
+    pub fn new(
         transmit: UnboundedSender<TalkProtocol>,
         com: Arc<Mutex<Vec<TalkProtocol>>>,
     ) -> Self {
@@ -42,6 +38,8 @@ impl App {
             scroll: 0,
             character_index: 0,
             tx: transmit,
+            username: "Client".to_string(),
+            room: 0,
         }
     }
 
@@ -91,15 +89,7 @@ impl App {
     }
 
     fn submit_message(&mut self) {
-        let com = TalkProtocol {
-            uuid: Uuid::new_v4(),
-            username: "Client".to_string(),
-            message: Some(self.input.clone()),
-            action: Send,
-            room_id: 1,
-            unixtime: get_unix_timestamp(),
-        };
-        self.tx.unbounded_send(com).unwrap();
+        command::parse(self);
         self.input.clear();
         self.reset_cursor();
     }
@@ -122,6 +112,16 @@ impl App {
                                 self.input_mode = InputMode::Editing;
                             }
                             KeyCode::Char('q') => {
+                                let message = format!("{} left the Chat", self.username);
+                                let com = TalkProtocol {
+                                    uuid: Uuid::new_v4(),
+                                    username: "Info".to_string(),
+                                    message: Some(message.to_string()),
+                                    action: Leave,
+                                    room_id: self.room,
+                                    unixtime: command::get_unix_timestamp(),
+                                };
+                                self.tx.unbounded_send(com).unwrap();
                                 return Ok(());
                             }
                             KeyCode::Char('k') => {

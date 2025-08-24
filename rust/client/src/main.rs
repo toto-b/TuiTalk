@@ -1,5 +1,6 @@
 mod app;
 mod ui;
+mod command;
 
 use crate::app::App;
 use futures_channel::mpsc::unbounded;

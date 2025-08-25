@@ -9,6 +9,11 @@ services:
       - POSTGRES_USER=${POSTGRES_USER}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
       - POSTGRES_DB=${POSTGRES_DB}
+    healthcheck:
+      test: ["CMD-SHELL", "sh -c 'pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}'"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
     volumes:
       - tui_pg_volume:/var/lib/postgresql/data
     networks:
@@ -28,10 +33,14 @@ services:
     ports:
       - "8080:8080"
     depends_on:
-      - redis-node-1
-      - redis-node-2
-      - redis-node-3
-      - postgresdb
+      postgresdb:
+        condition: service_healthy
+      redis-node-1:
+        condition: service_started
+      redis-node-2:
+        condition: service_started
+      redis-node-3:
+        condition: service_started
 
   tuitalk_backend_1:
     container_name: backend_1
@@ -47,10 +56,14 @@ services:
     ports:
       - "8081:8080"
     depends_on:
-      - redis-node-1
-      - redis-node-2
-      - redis-node-3
-      - postgresdb
+      postgresdb:
+        condition: service_healthy
+      redis-node-1:
+        condition: service_started
+      redis-node-2:
+        condition: service_started
+      redis-node-3:
+        condition: service_started
 
   tuitalk_backend_2:
     container_name: backend_2
@@ -66,10 +79,14 @@ services:
     ports:
       - "8082:8080"
     depends_on:
-      - redis-node-1
-      - redis-node-2
-      - redis-node-3
-      - postgresdb
+      postgresdb:
+        condition: service_healthy
+      redis-node-1:
+        condition: service_started
+      redis-node-2:
+        condition: service_started
+      redis-node-3:
+        condition: service_started
 
   loadbalancer:
     build: loadbalancer

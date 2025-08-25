@@ -11,7 +11,7 @@ pub fn establish_connection() -> PgConnection {
         "postgres://{}:{}@{}:{}/{}",
         db_user, db_pass, db_host, db_port, db_name
     );
-    println!("{}",database_url);
+    println!("Connected to {}",database_url);
 
     PgConnection::establish(&database_url)
         .unwrap_or_else(|_| panic!("Error connecting to {}", database_url))

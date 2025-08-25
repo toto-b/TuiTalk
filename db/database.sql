@@ -8,6 +8,7 @@ CREATE TABLE messages (
     id SERIAL PRIMARY KEY,
     time INTEGER,
     message TEXT,
+    username TEXT,
     room_id INTEGER,
-    user_id INTEGER REFERENCES users(id)
+    uuid UUID
 );

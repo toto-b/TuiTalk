@@ -1,3 +1,4 @@
+use diesel::PgConnection;
 use futures_channel::mpsc::{UnboundedSender, unbounded};
 use futures_util::{SinkExt, StreamExt, future, pin_mut, stream::TryStreamExt};
 use redis::cluster_async::ClusterConnection as ClusterConnectionAsync;
@@ -19,7 +20,12 @@ use tokio::{
 };
 use tokio_tungstenite::tungstenite::protocol::Message;
 
+use crate::database::connection::establish_connection;
+use crate::database::models::NewUser;
+use crate::database::queries::insert_user;
+
 type SharedRedis = Arc<TMutex<ClusterConnection>>;
+type SharedPostgres = Arc<TMutex<PgConnection>>;
 
 pub async fn create_redis_async_pubsub_connection()
 -> Result<(ClusterConnectionAsync, TUnboundedReceiver<PushInfo>), redis::RedisError> {
@@ -89,7 +95,7 @@ pub async fn subscribe_to_redis(mut tx: UnboundedSender<Message>) {
     }
 }
 
-pub async fn handle_connection(raw_stream: TcpStream, addr: SocketAddr, shared_redis: SharedRedis) {
+pub async fn handle_connection(raw_stream: TcpStream, addr: SocketAddr, shared_redis: SharedRedis, pg_conn: SharedPostgres) {
     println!("Incoming TCP connection from: {}", addr);
 
     let ws_stream = tokio_tungstenite::accept_async(raw_stream)
@@ -112,7 +118,7 @@ pub async fn handle_connection(raw_stream: TcpStream, addr: SocketAddr, shared_r
                 let raw_data = msg.clone().into_data();
 
                 eprintln!(
-                    "Failed to deserialize message from {}.\n\
+                    "[SERVER] Failed to deserialize message from {}.\n\
                         Error: {}\n\
                         Error type: {}\n\
                         Hex dump: {:02x?}",
@@ -131,7 +137,7 @@ pub async fn handle_connection(raw_stream: TcpStream, addr: SocketAddr, shared_r
         };
 
         println!(
-            "Received a message from ip={}: [{}, {:?}]: {} ",
+            "[SERVER] Received a message from ip={}: [{}, {:?}]: {} ",
             addr,
             deserialize_msg.username,
             deserialize_msg.action,
@@ -154,6 +160,12 @@ pub async fn handle_connection(raw_stream: TcpStream, addr: SocketAddr, shared_r
             });
         } else if *action == Join {
             //add room to client rooms
+            let msg_clone = deserialize_msg.clone();
+            let pg_conn_clone = Arc::clone(&pg_conn);
+            tokio::spawn(async move {
+                let mut unlocked_connection = pg_conn_clone.lock().await;
+                let _ = insert_user(&mut unlocked_connection, NewUser { room_id: msg_clone.room_id, uuid: msg_clone.uuid }).expect("Message database insert");
+            });
         } else if *action == Leave {
             // remove client from room
         } else {
@@ -186,9 +198,12 @@ pub async fn start_ws_server() -> Result<(), std::io::Error> {
         .expect("Redis connection failed");
     let shared_con: SharedRedis = Arc::new(TMutex::new(redis_con));
 
+    let pg_conn = Arc::new(TMutex::new(establish_connection()));
+
     while let Ok((stream, addr)) = listener.accept().await {
         let rd_clone = Arc::clone(&shared_con);
-        tokio::spawn(handle_connection(stream, addr, rd_clone));
+        let pg_clone = Arc::clone(&pg_conn);
+        tokio::spawn(handle_connection(stream, addr, rd_clone, pg_clone));
 
         let metrics = Handle::current().metrics();
 

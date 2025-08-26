@@ -1,6 +1,6 @@
 use crate::app;
 use crossterm::terminal::disable_raw_mode;
-use shared::{ClientAction::Leave, ClientAction::Send, TalkProtocol};
+use shared::{ClientAction::*, TalkProtocol};
 use std::{
     num::ParseIntError,
     process,
@@ -42,7 +42,8 @@ fn parse_command(app: &mut app::App) {
         match app.input.parse::<i32>() {
             Ok(number) => {
                 let com = parse_command_room_valid(app, number);
-                app.tx.unbounded_send(com).unwrap();
+                app.tx.unbounded_send(com.0).unwrap();
+                app.tx.unbounded_send(com.1).unwrap();
             }
             Err(error) => {
                 let com = parse_command_room_invalid(app, error);
@@ -61,16 +62,25 @@ fn parse_command(app: &mut app::App) {
     }
 }
 
-fn parse_command_room_valid(app: &mut app::App, number: i32) -> TalkProtocol {
-    app.room = number;
-    TalkProtocol {
+fn parse_command_room_valid(app: &mut app::App, number: i32) -> (TalkProtocol, TalkProtocol) {
+    let leave_message = TalkProtocol {
         uuid: Uuid::new_v4(),
         username: "Info".to_string(),
-        message: Some(format!("{} changed to room {}", app.username, app.room)),
-        action: Send,
+        message: Some(format!("{} changed to room {}", app.username, number)),
+        action: Leave,
         room_id: app.room,
         unixtime: get_unix_timestamp(),
-    }
+    };
+    app.room = number;
+    let join_message = TalkProtocol {
+        uuid: Uuid::new_v4(),
+        username: "Info".to_string(),
+        message: Some(format!("{} joined the room", app.username)),
+        action: Join,
+        room_id: app.room,
+        unixtime: get_unix_timestamp(),
+    };
+    (leave_message, join_message)
 }
 
 fn parse_command_room_invalid(app: &mut app::App, error: ParseIntError) -> TalkProtocol {

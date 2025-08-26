@@ -3,55 +3,90 @@ services:
   postgresdb:
     build: db
     restart: always
+    ports:
+      - "5432:5432"
     environment:
       - POSTGRES_USER=${POSTGRES_USER}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-      - POSTGRES_DB=tuidb
+      - POSTGRES_DB=${POSTGRES_DB}
+    healthcheck:
+      test: ["CMD-SHELL", "sh -c 'pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}'"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
     volumes:
       - tui_pg_volume:/var/lib/postgresql/data
-      
+    networks:
+      - loadbalancing
 
   tuitalk_backend_0:
     container_name: backend_0
     build: rust
     environment:
       - REDIS_NODES=redis-1:6379,redis-2:6379,redis-3:6379
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB}
+      - POSTGRES_HOST=${POSTGRES_HOST}
     networks:
       - loadbalancing
     ports:
       - "8080:8080"
     depends_on:
-      - redis-node-1
-      - redis-node-2
-      - redis-node-3
+      postgresdb:
+        condition: service_healthy
+      redis-node-1:
+        condition: service_started
+      redis-node-2:
+        condition: service_started
+      redis-node-3:
+        condition: service_started
 
   tuitalk_backend_1:
     container_name: backend_1
     build: rust
     environment:
       - REDIS_NODES=redis-1:6379,redis-2:6379,redis-3:6379
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB}
+      - POSTGRES_HOST=${POSTGRES_HOST}
     networks:
       - loadbalancing
     ports:
       - "8081:8080"
     depends_on:
-      - redis-node-1
-      - redis-node-2
-      - redis-node-3
+      postgresdb:
+        condition: service_healthy
+      redis-node-1:
+        condition: service_started
+      redis-node-2:
+        condition: service_started
+      redis-node-3:
+        condition: service_started
 
   tuitalk_backend_2:
     container_name: backend_2
     build: rust
     environment:
       - REDIS_NODES=redis-1:6379,redis-2:6379,redis-3:6379
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB}
+      - POSTGRES_HOST=${POSTGRES_HOST}
     networks:
       - loadbalancing
     ports:
       - "8082:8080"
     depends_on:
-      - redis-node-1
-      - redis-node-2
-      - redis-node-3
+      postgresdb:
+        condition: service_healthy
+      redis-node-1:
+        condition: service_started
+      redis-node-2:
+        condition: service_started
+      redis-node-3:
+        condition: service_started
 
   loadbalancer:
     build: loadbalancer

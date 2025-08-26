@@ -43,6 +43,18 @@ impl App {
         }
     }
 
+    fn join_initial_room(&mut self) {
+        let com = TalkProtocol {
+            uuid: Uuid::new_v4(),
+            username: "Info".to_string(),
+            message: Some(format!("{} joined the room", self.username)),
+            action: Join,
+            room_id: self.room,
+            unixtime: command::get_unix_timestamp(),
+        };
+        self.tx.unbounded_send(com).unwrap();
+    }
+
     fn move_cursor_left(&mut self) {
         let cursor_moved_left = self.character_index.saturating_sub(1);
         self.character_index = self.clamp_cursor(cursor_moved_left);
@@ -96,6 +108,7 @@ impl App {
 
     pub fn run(mut self, mut terminal: DefaultTerminal) -> Result<()> {
         let tick_rate = Duration::from_millis(100);
+        self.join_initial_room();
         loop {
             terminal.draw(|frame| self.draw(frame))?;
 

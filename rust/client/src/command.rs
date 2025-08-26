@@ -56,6 +56,9 @@ fn parse_command(app: &mut app::App) {
         app.tx.unbounded_send(com).unwrap();
     } else if app.input == "clear" {
         app.communication.lock().unwrap().clear();
+    } else if app.input == "fetch" {
+        let com = parse_command_fetch(app);
+        app.tx.unbounded_send(com).unwrap();
     } else {
         let com = parse_invalid_command(app);
         app.communication.lock().unwrap().push(com);
@@ -127,6 +130,17 @@ fn parse_command_broadcast(app: &mut app::App) -> TalkProtocol {
         username: "Broadcast".to_string(),
         message: Some(app.input.to_string()),
         action: Send,
+        room_id: app.room,
+        unixtime: get_unix_timestamp(),
+    }
+}
+
+fn parse_command_fetch(app: &mut app::App) -> TalkProtocol {
+    TalkProtocol {
+        uuid: Uuid::new_v4(),
+        username: "Info".to_string(),
+        message: Some("Fetch requested".to_string()),
+        action: Fetch,
         room_id: app.room,
         unixtime: get_unix_timestamp(),
     }

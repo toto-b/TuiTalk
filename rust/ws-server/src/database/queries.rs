@@ -1,8 +1,8 @@
 use diesel::prelude::*;
 use diesel::associations::HasTable;
 use crate::database::models::{NewMessage, NewUser, Message ,User};
-use crate::database::schema::users::dsl::*; // brings `users` table into scope
-use crate::database::schema::messages::{self, dsl::*}; // brings `users` table into scope
+use crate::database::schema::users::dsl::*;
+use crate::database::schema::messages::{self, dsl::*};
 
 pub fn insert_user(conn: &mut PgConnection, user: NewUser) -> Result<usize, diesel::result::Error> {
     diesel::insert_into(users::table())

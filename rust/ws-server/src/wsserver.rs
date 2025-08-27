@@ -271,7 +271,10 @@ pub async fn handle_connection(raw_stream: TcpStream, addr: SocketAddr, shared_r
         }
     };
 
-    future::join(process_msg, receive_from_redis).await;
+    let (res1, _res2) = future::join(process_msg, receive_from_redis).await;
+    if let Err(e) = res1 {
+        eprintln!("process_msg failed: {:?}", e);
+    }
 
     // tokio::select! {
     //     _ = process_msg => {

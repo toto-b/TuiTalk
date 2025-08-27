@@ -12,7 +12,7 @@ use tokio::{
     runtime::Handle,
 };
 use redis::Commands;
-use crate::database::{connection::establish_connection};
+use crate::database::{connection::establish_connection, queries::insert_message, models::NewMessage};
 use crate::redis::*; // custom module
 
 type SharedPostgres = Arc<TMutex<PgConnection>>;
@@ -68,28 +68,26 @@ pub async fn handle_connection(raw_stream: TcpStream, addr: SocketAddr, shared_r
             deserialize_msg.clone().message.expect("Message")
         );
 
-        let action = &deserialize_msg.action;
 
-        // Publish to Redis
-        let sr_clone = Arc::clone(&shared_redis);
         let msg_clone = deserialize_msg.clone();
         let msg_json = msg_clone.serialize().unwrap();
 
-        // let con = Arc::clone(&pg_conn);
-        // tokio::spawn(async move {
-        //     let mut unlock = con.lock().await;
-        //     if let Ok(query_result) = insert_message(&mut unlock, NewMessage {
-        //         room_id: msg_clone.room_id,
-        //         message: msg_clone.message.expect("persisting message"),
-        //         time: 0,
-        //         uuid: msg_clone.uuid,
-        //         username: msg_clone.username,
-        //     }) {
-        //         println!("Query Successful {}", query_result);
-        //     }
-        // });
+        let con = Arc::clone(&pg_conn);
+        tokio::spawn(async move {
+            let mut unlock = con.lock().await;
+            if let Ok(query_result) = insert_message(&mut unlock, NewMessage {
+                room_id: msg_clone.room_id,
+                message: msg_clone.message.expect("persisting message"),
+                time: msg_clone.unixtime as i64,
+                uuid: msg_clone.uuid,
+                username: msg_clone.username,
+            }) {
+                println!("[SERVER] Query Successful Message was persisted {}", query_result);
+            }
+        });
 
-        println!("[SERVER] In Send trying to publish");
+        // Publish to Redis
+        let sr_clone = Arc::clone(&shared_redis);
         tokio::spawn(async move {
             let mut conn = sr_clone.lock().await;
             let result: Result<(), redis::RedisError> = conn
@@ -100,6 +98,7 @@ pub async fn handle_connection(raw_stream: TcpStream, addr: SocketAddr, shared_r
             }
         });
 
+        let action = &deserialize_msg.action;
         if *action == Join {
             println!("[SERVER] joining {}",deserialize_msg.room_id);
                 let _ = room_tx.send(deserialize_msg.room_id);

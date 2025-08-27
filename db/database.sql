@@ -6,7 +6,7 @@ CREATE TABLE users (
 
 CREATE TABLE messages (
     id SERIAL PRIMARY KEY,
-    time INTEGER,
+    time BIGINT,
     message TEXT,
     username TEXT,
     room_id INTEGER,

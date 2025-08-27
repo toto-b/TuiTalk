@@ -233,23 +233,23 @@ pub async fn handle_connection(raw_stream: TcpStream, addr: SocketAddr, shared_r
 
         let action = &deserialize_msg.action;
 
-        if *action == Send {
-            // Publish to Redis
-            let sr_clone = Arc::clone(&shared_redis);
-            let msg_clone = deserialize_msg.clone();
-            let msg_json = msg_clone.serialize().unwrap();
+        // Publish to Redis
+        let sr_clone = Arc::clone(&shared_redis);
+        let msg_clone = deserialize_msg.clone();
+        let msg_json = msg_clone.serialize().unwrap();
 
-            println!("[SERVER] In Send trying to publish");
-            tokio::spawn(async move {
-                let mut conn = sr_clone.lock().await;
-                let result: Result<(), redis::RedisError> = conn
-                    .spublish(msg_clone.room_id, msg_json);
-                match result {
-                    Ok(_) => println!("[SERVER] Successfully published to Redis"),
-                    Err(e) => eprintln!("[SERVER] Failed to publish to Redis: {}", e),
-                }
-            });
-        } else if *action == Join {
+        println!("[SERVER] In Send trying to publish");
+        tokio::spawn(async move {
+            let mut conn = sr_clone.lock().await;
+            let result: Result<(), redis::RedisError> = conn
+                .spublish(msg_clone.room_id, msg_json);
+            match result {
+                Ok(_) => println!("[SERVER] Successfully published to Redis"),
+                Err(e) => eprintln!("[SERVER] Failed to publish to Redis: {}", e),
+            }
+        });
+
+        if *action == Join {
             println!("[SERVER] joining {}",deserialize_msg.room_id);
                 let _ = room_tx.send(deserialize_msg.room_id);
         } else if *action == Leave {

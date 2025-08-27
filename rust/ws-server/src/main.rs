@@ -1,16 +1,13 @@
 mod wsserver;
 mod database;
+mod redis;
 
-use std::sync::Arc;
-use redis::Connection;
-use tokio::sync::Mutex;
-use database::connection::establish_connection;
+use ::redis::RedisResult;
+
 use dotenvy::dotenv;
 
-type SharedRedis = Arc<Mutex<Connection>>;
-
 #[tokio::main]
-async fn main() -> redis::RedisResult<()> {
+async fn main() -> RedisResult<()> {
     dotenv().ok(); 
 
     let server_handle = tokio::spawn(async move {

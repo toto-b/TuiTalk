@@ -6,6 +6,7 @@ use std::{env, sync::Arc};
 use tokio::sync::mpsc::UnboundedSender as TUnboundedSender;
 use tokio::sync::{Mutex as TMutex, mpsc::UnboundedReceiver as TUnboundedReceiver};
 use tokio_tungstenite::tungstenite::protocol::Message;
+use tokio::sync::{oneshot::{Receiver, Sender}};
 
 pub type SharedRedis = Arc<TMutex<ClusterConnection>>;
 
@@ -88,7 +89,7 @@ pub async fn subscribe_to_redis_pattern(tx: TUnboundedSender<Message>) {
 
 pub async fn subscribe_to_redis(
     tx: TUnboundedSender<Message>,
-    mut room_id_receiver: TUnboundedReceiver<i32>,
+    mut room_id_receiver: TUnboundedReceiver<(i32, Sender<()>)>,
 ) {
     println!("[REDIS] Subbing to redis");
 
@@ -123,7 +124,7 @@ pub async fn subscribe_to_redis(
     let mut current_room: Option<String> = None;
 
     // listen on channel for room changes
-    while let Some(room_id) = room_id_receiver.recv().await {
+    while let Some((room_id, ack)) = room_id_receiver.recv().await {
         let channel = format!("{}", room_id);
 
         // unsubscribe from old room if there was one
@@ -137,5 +138,6 @@ pub async fn subscribe_to_redis(
         con.ssubscribe(&channel).await.expect("SSUBSCRIBE failed");
 
         current_room = Some(channel);
+        let _ = ack.send(());
     }
 }

@@ -1,23 +1,32 @@
+use crate::database::{
+    connection::establish_connection,
+    models::{NewMessage, NewUser},
+    queries::{delete_user_by_uuid, insert_message, insert_user},
+};
+use crate::redis::*;
 use diesel::PgConnection;
 use futures_util::{SinkExt, StreamExt, future, stream::TryStreamExt};
+use redis::Commands;
 use shared::{
-    ClientAction::{Join, Leave, Send, Fetch},
+    ClientAction::{Fetch, Join, Leave, Send},
     TalkProtocol,
 };
 use std::{env, net::SocketAddr, sync::Arc};
-use tokio::sync::mpsc::{unbounded_channel};
-use tokio::sync::{Mutex as TMutex};
+use tokio::sync::Mutex as TMutex;
+use tokio::sync::{mpsc::unbounded_channel, oneshot};
 use tokio::{
     net::{TcpListener, TcpStream},
     runtime::Handle,
-};
-use redis::Commands;
-use crate::database::{connection::establish_connection, models::{NewMessage, NewUser}, queries::{delete_user_by_uuid, insert_message, insert_user}};
-use crate::redis::*; // custom module
+}; // custom module
 
 type SharedPostgres = Arc<TMutex<PgConnection>>;
 
-pub async fn handle_connection(raw_stream: TcpStream, addr: SocketAddr, shared_redis: SharedRedis, pg_conn: SharedPostgres) {
+pub async fn handle_connection(
+    raw_stream: TcpStream,
+    addr: SocketAddr,
+    shared_redis: SharedRedis,
+    pg_conn: SharedPostgres,
+) {
     println!("Incoming TCP connection from: {}", addr);
 
     let ws_stream = tokio_tungstenite::accept_async(raw_stream)
@@ -26,12 +35,13 @@ pub async fn handle_connection(raw_stream: TcpStream, addr: SocketAddr, shared_r
     println!("WebSocket connection established: {}", addr);
 
     let (tx, mut rx) = unbounded_channel();
-    let (room_tx, room_rx) = unbounded_channel();
+    // let (room_tx, room_rx) = unbounded_channel();
+    let (room_tx, room_rx) = unbounded_channel::<(i32, oneshot::Sender<()>)>();
 
     let (outgoing, incoming) = ws_stream.split();
 
     tokio::spawn(async move {
-        subscribe_to_redis(tx,room_rx).await;
+        subscribe_to_redis(tx, room_rx).await;
     });
 
     let process_msg = incoming.try_for_each(|msg| {
@@ -68,49 +78,71 @@ pub async fn handle_connection(raw_stream: TcpStream, addr: SocketAddr, shared_r
             deserialize_msg.clone().message.expect("Message")
         );
 
-
         let msg_clone = deserialize_msg.clone();
         let msg_json = msg_clone.serialize().unwrap();
 
         let con = Arc::clone(&pg_conn);
         tokio::spawn(async move {
             let mut unlock = con.lock().await;
-            if let Ok(query_result) = insert_message(&mut unlock, NewMessage {
-                room_id: msg_clone.room_id,
-                message: msg_clone.message.expect("persisting message"),
-                time: msg_clone.unixtime as i64,
-                uuid: msg_clone.uuid,
-                username: msg_clone.username,
-            }) {
-                println!("[SERVER] Query Successful Message was persisted {}", query_result);
-            }
-        });
-
-        // Publish to Redis
-        let sr_clone = Arc::clone(&shared_redis);
-        tokio::spawn(async move {
-            let mut conn = sr_clone.lock().await;
-            let result: Result<(), redis::RedisError> = conn
-                .spublish(msg_clone.room_id, msg_json);
-            match result {
-                Ok(_) => println!("[SERVER] Successfully published to Redis"),
-                Err(e) => eprintln!("[SERVER] Failed to publish to Redis: {}", e),
+            if let Ok(query_result) = insert_message(
+                &mut unlock,
+                NewMessage {
+                    room_id: msg_clone.room_id,
+                    message: msg_clone.message.expect("persisting message"),
+                    time: msg_clone.unixtime as i64,
+                    uuid: msg_clone.uuid,
+                    username: msg_clone.username,
+                },
+            ) {
+                println!(
+                    "[SERVER] Query Successful Message was persisted {}",
+                    query_result
+                );
             }
         });
 
         let action = &deserialize_msg.action;
         if *action == Join {
-            println!("[SERVER] sending room change {}",deserialize_msg.room_id);
-            let _ = room_tx.send(deserialize_msg.room_id);
+            println!("[SERVER] sending room change {}", deserialize_msg.room_id);
+
+            let (ack_tx, ack_rx) = oneshot::channel();
+            let _ = room_tx.send((deserialize_msg.room_id, ack_tx));
+            let sr_clone = Arc::clone(&shared_redis);
+            // Wait till Channels was switche and publish afterwards to redis
+            tokio::spawn(async move {
+                match ack_rx.await {
+                    Ok(()) => {
+                        // Publish to Redis
+                        let mut conn = sr_clone.lock().await;
+                        let result: Result<(), redis::RedisError> =
+                            conn.spublish(msg_clone.room_id, msg_json);
+                        match result {
+                            Ok(_) => println!("[SERVER] Successfully published to Redis"),
+                            Err(e) => eprintln!("[SERVER] Failed to publish to Redis: {}", e),
+                        }
+                    }
+                    Err(_) => {
+                        eprintln!("[SERVER] Subscription acknowledgment failed");
+                    }
+                };
+                let _ = Ok::<(), tokio_tungstenite::tungstenite::Error>(());
+            });
+
             // save uuid and room relationship
             let con = Arc::clone(&pg_conn);
             tokio::spawn(async move {
                 let mut unlock = con.lock().await;
-                if let Ok(query_result) = insert_user(&mut unlock, NewUser {
-                    room_id: deserialize_msg.clone().room_id,
-                    uuid: deserialize_msg.clone().uuid,
-                }) {
-                    println!("[SERVER] Query Successful User was persisted {}", query_result);
+                if let Ok(query_result) = insert_user(
+                    &mut unlock,
+                    NewUser {
+                        room_id: deserialize_msg.clone().room_id,
+                        uuid: deserialize_msg.clone().uuid,
+                    },
+                ) {
+                    println!(
+                        "[SERVER] Query Successful User was persisted {}",
+                        query_result
+                    );
                 }
             });
         } else if *action == Leave {
@@ -119,13 +151,29 @@ pub async fn handle_connection(raw_stream: TcpStream, addr: SocketAddr, shared_r
             tokio::spawn(async move {
                 let mut unlock = con.lock().await;
                 if let Ok(query_result) = delete_user_by_uuid(&mut unlock, deserialize_msg.uuid) {
-                    println!("[SERVER] Query Successful user roomstate was deleted {}", query_result);
+                    println!(
+                        "[SERVER] Query Successful user roomstate was deleted {}",
+                        query_result
+                    );
                 }
             });
         } else if *action == Fetch {
             println!("[SERVER] Received a fetch request");
         } else {
-            //invalid action
+            // Normal messages - process immediately
+            let msg_clone = deserialize_msg.clone();
+            let msg_json = msg_clone.serialize().unwrap();
+
+            let sr_clone = Arc::clone(&shared_redis);
+            tokio::spawn(async move {
+                let mut conn = sr_clone.lock().await;
+                let result: Result<(), redis::RedisError> =
+                    conn.spublish(msg_clone.room_id, msg_json);
+                match result {
+                    Ok(_) => println!("[SERVER] Successfully published to Redis"),
+                    Err(e) => eprintln!("[SERVER] Failed to publish to Redis: {}", e),
+                }
+            });
         }
 
         future::ok(())

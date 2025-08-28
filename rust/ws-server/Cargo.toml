@@ -17,6 +17,7 @@ dotenvy = "0.15.7"
 diesel = { version = "2.2.12", features = ["postgres", "uuid"] }
 pq-sys = { version = "0.6", features = ["bundled"] }
 openssl-sys = { version = "0.9.100", features = ["vendored"] } 
+anyhow = "1.0.99"
 
 [dependencies.uuid]
 version = "1.18.0"

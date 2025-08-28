@@ -1,7 +1,7 @@
 use diesel::PgConnection;
 use futures_util::{SinkExt, StreamExt, future, stream::TryStreamExt};
 use shared::{
-    ClientAction::{Join, Leave, Send},
+    ClientAction::{Join, Leave, Send, Fetch},
     TalkProtocol,
 };
 use std::{env, net::SocketAddr, sync::Arc};
@@ -12,7 +12,7 @@ use tokio::{
     runtime::Handle,
 };
 use redis::Commands;
-use crate::database::{connection::establish_connection, queries::insert_message, models::NewMessage};
+use crate::database::{connection::establish_connection, models::{NewMessage, NewUser}, queries::{delete_user_by_uuid, insert_message, insert_user}};
 use crate::redis::*; // custom module
 
 type SharedPostgres = Arc<TMutex<PgConnection>>;
@@ -100,10 +100,30 @@ pub async fn handle_connection(raw_stream: TcpStream, addr: SocketAddr, shared_r
 
         let action = &deserialize_msg.action;
         if *action == Join {
-            println!("[SERVER] joining {}",deserialize_msg.room_id);
-                let _ = room_tx.send(deserialize_msg.room_id);
+            println!("[SERVER] sending room change {}",deserialize_msg.room_id);
+            let _ = room_tx.send(deserialize_msg.room_id);
+            // save uuid and room relationship
+            let con = Arc::clone(&pg_conn);
+            tokio::spawn(async move {
+                let mut unlock = con.lock().await;
+                if let Ok(query_result) = insert_user(&mut unlock, NewUser {
+                    room_id: deserialize_msg.clone().room_id,
+                    uuid: deserialize_msg.clone().uuid,
+                }) {
+                    println!("[SERVER] Query Successful User was persisted {}", query_result);
+                }
+            });
         } else if *action == Leave {
             // remove client from room
+            let con = Arc::clone(&pg_conn);
+            tokio::spawn(async move {
+                let mut unlock = con.lock().await;
+                if let Ok(query_result) = delete_user_by_uuid(&mut unlock, deserialize_msg.uuid) {
+                    println!("[SERVER] Query Successful user roomstate was deleted {}", query_result);
+                }
+            });
+        } else if *action == Fetch {
+            println!("[SERVER] Received a fetch request");
         } else {
             //invalid action
         }

@@ -90,7 +90,7 @@ pub async fn subscribe_to_redis(
     tx: TUnboundedSender<Message>,
     mut room_id_receiver: TUnboundedReceiver<i32>,
 ) {
-    println!("[SERVER-SUB] Subbing to redis");
+    println!("[REDIS] Subbing to redis");
 
     // create one persistent redis connection for all rooms
     let r = create_redis_async_pubsub_connection().await;
@@ -128,12 +128,12 @@ pub async fn subscribe_to_redis(
 
         // unsubscribe from old room if there was one
         if let Some(old) = &current_room {
-            println!("[SERVER-SUB] Unsubscribing from {}", old);
+            println!("[REDIS] Unsubscribing from {}", old);
             let _ = con.sunsubscribe(old).await;
         }
 
         // subscribe to new room
-        println!("[SERVER-SUB] Subscribing to {}", channel);
+        println!("[REDIS] Subscribing to {}", channel);
         con.ssubscribe(&channel).await.expect("SSUBSCRIBE failed");
 
         current_room = Some(channel);

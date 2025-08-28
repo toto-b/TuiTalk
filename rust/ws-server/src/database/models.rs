@@ -1,7 +1,7 @@
 use diesel::prelude::Insertable;
 use diesel::Queryable;
 use diesel::Selectable;
-use uuid::Uuid;
+use ::uuid::Uuid;   
 use crate::database::schema::users;
 use crate::database::schema::messages;
 

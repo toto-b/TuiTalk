@@ -39,6 +39,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "anyhow"
+version = "1.0.99"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b0674a1ddeecb70197781e945de4b3b8ffb61fa939a5597bcf48503737663100"
+
+[[package]]
 name = "anymap2"
 version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1752,12 +1758,10 @@ dependencies = [
  "gloo-net 0.2.6",
  "gloo-utils",
  "log",
- "redis",
  "serde",
  "tokio",
  "tokio-tungstenite 0.20.1",
  "uuid",
- "wasm-bindgen",
  "yew",
 ]
 
@@ -2536,11 +2540,10 @@ checksum = "ea2f10b9bb0928dfb1b42b65e1f9e36f7f54dbdf08457afefb38afcdec4fa2bb"
 name = "ws-server"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "bincode",
- "chrono",
  "diesel",
  "dotenvy",
- "futures-channel",
  "futures-util",
  "openssl-sys",
  "pq-sys",

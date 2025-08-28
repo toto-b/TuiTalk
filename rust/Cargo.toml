@@ -1,7 +1,8 @@
 [workspace]
+resolver = "3"
 members = [
     "ws-server",
     "client",
-    "shared"       # optional, only if you want a shared crate
-, "wasm-client"]
-
+    "shared",
+    "wasm-client"
+]

@@ -2,8 +2,10 @@ mod wsserver;
 mod database;
 mod redis;
 
-use ::redis::RedisResult;
+use openssl_sys as _;
+use pq_sys as _;
 
+use ::redis::RedisResult;
 use dotenvy::dotenv;
 
 #[tokio::main]

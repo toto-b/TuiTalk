@@ -5,10 +5,10 @@ use crate::database::{
 };
 use crate::redis::*;
 use diesel::PgConnection;
-use futures_util::{SinkExt, StreamExt, future, stream::TryStreamExt};
-use redis::{Commands, FromRedisValue};
+use futures_util::{SinkExt, StreamExt, stream::TryStreamExt};
+use redis::{Commands};
 use shared::{
-    ClientAction::{Fetch, Join, Leave, Send},
+    ClientAction::{Join, Leave},
     TalkProtocol,
 };
 use uuid::Uuid;

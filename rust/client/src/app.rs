@@ -19,6 +19,7 @@ pub struct App {
     pub tx: UnboundedSender<TalkProtocol>,
     pub username: String,
     pub room: i32,
+    pub uuid: Uuid,
 }
 
 pub enum InputMode {
@@ -40,12 +41,13 @@ impl App {
             tx: transmit,
             username: "Client".to_string(),
             room: 0,
+            uuid: Uuid::new_v4(),
         }
     }
 
     fn join_initial_room(&mut self) {
         let com = TalkProtocol {
-            uuid: Uuid::new_v4(),
+            uuid: self.uuid,
             username: "Info".to_string(),
             message: Some(format!("{} joined the room", self.username)),
             action: Join,
@@ -127,7 +129,7 @@ impl App {
                             KeyCode::Char('q') => {
                                 let message = format!("{} left the Chat", self.username);
                                 let com = TalkProtocol {
-                                    uuid: Uuid::new_v4(),
+                                    uuid: self.uuid,
                                     username: "Info".to_string(),
                                     message: Some(message.to_string()),
                                     action: Leave,

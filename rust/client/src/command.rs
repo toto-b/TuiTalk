@@ -21,7 +21,7 @@ pub fn parse(app: &mut app::App) {
         parse_command(app);
     } else {
         let com = TalkProtocol {
-            uuid: Uuid::new_v4(),
+            uuid: app.uuid,
             username: app.username.to_string(),
             message: Some(app.input.to_string()),
             action: Send,
@@ -67,7 +67,7 @@ fn parse_command(app: &mut app::App) {
 
 fn parse_command_room_valid(app: &mut app::App, number: i32) -> (TalkProtocol, TalkProtocol) {
     let leave_message = TalkProtocol {
-        uuid: Uuid::new_v4(),
+        uuid: app.uuid,
         username: "Info".to_string(),
         message: Some(format!("{} changed to room {}", app.username, number)),
         action: Leave,
@@ -76,7 +76,7 @@ fn parse_command_room_valid(app: &mut app::App, number: i32) -> (TalkProtocol, T
     };
     app.room = number;
     let join_message = TalkProtocol {
-        uuid: Uuid::new_v4(),
+        uuid: app.uuid,
         username: "Info".to_string(),
         message: Some(format!("{} joined the room", app.username)),
         action: Join,
@@ -88,7 +88,7 @@ fn parse_command_room_valid(app: &mut app::App, number: i32) -> (TalkProtocol, T
 
 fn parse_command_room_invalid(app: &mut app::App, error: ParseIntError) -> TalkProtocol {
     TalkProtocol {
-        uuid: Uuid::new_v4(),
+        uuid: app.uuid,
         username: "Error".to_string(),
         message: Some(error.to_string()),
         action: Send,
@@ -101,7 +101,7 @@ fn parse_command_name(app: &mut app::App) -> TalkProtocol {
     let old_username = app.username.to_string();
     app.username = app.input.to_string();
     TalkProtocol {
-        uuid: Uuid::new_v4(),
+        uuid: app.uuid,
         username: "Info".to_string(),
         message: Some(format!(
             "{} changed his name to '{}'",
@@ -115,7 +115,7 @@ fn parse_command_name(app: &mut app::App) -> TalkProtocol {
 
 fn parse_invalid_command(app: &mut app::App) -> TalkProtocol {
     TalkProtocol {
-        uuid: Uuid::new_v4(),
+        uuid: app.uuid,
         username: "Error".to_string(),
         message: Some(format!("The command '{}' does not exist", app.input)),
         action: Send,
@@ -126,7 +126,7 @@ fn parse_invalid_command(app: &mut app::App) -> TalkProtocol {
 
 fn parse_command_broadcast(app: &mut app::App) -> TalkProtocol {
     TalkProtocol {
-        uuid: Uuid::new_v4(),
+        uuid: app.uuid,
         username: "Broadcast".to_string(),
         message: Some(app.input.to_string()),
         action: Send,
@@ -137,7 +137,7 @@ fn parse_command_broadcast(app: &mut app::App) -> TalkProtocol {
 
 fn parse_command_fetch(app: &mut app::App) -> TalkProtocol {
     TalkProtocol {
-        uuid: Uuid::new_v4(),
+        uuid: app.uuid,
         username: "Info".to_string(),
         message: Some("Fetch requested".to_string()),
         action: Fetch,

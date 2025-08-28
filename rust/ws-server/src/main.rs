@@ -5,11 +5,11 @@ mod redis;
 use openssl_sys as _;
 use pq_sys as _;
 
-use ::redis::RedisResult;
 use dotenvy::dotenv;
+use anyhow::Result;
 
 #[tokio::main]
-async fn main() -> RedisResult<()> {
+async fn main() -> Result<()> {
     dotenv().ok(); 
 
     let server_handle = tokio::spawn(async move {

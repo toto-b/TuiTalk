@@ -4,7 +4,7 @@ use color_eyre::Result;
 use futures_channel::mpsc::UnboundedSender;
 use ratatui::DefaultTerminal;
 use ratatui::crossterm::event::{self, Event, KeyCode, KeyEventKind};
-use shared::{ClientAction::Send, ClientAction::Leave, TalkProtocol};
+use shared::{ClientAction::*, TalkProtocol};
 use std::sync::{Arc, Mutex};
 use std::thread::sleep;
 use std::time::{Duration, Instant};
@@ -96,6 +96,7 @@ impl App {
 
     pub fn run(mut self, mut terminal: DefaultTerminal) -> Result<()> {
         let tick_rate = Duration::from_millis(100);
+        command::join_initial_room(&mut self);
         loop {
             terminal.draw(|frame| self.draw(frame))?;
 

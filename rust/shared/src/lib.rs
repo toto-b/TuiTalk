@@ -6,6 +6,7 @@ pub enum ClientAction {
     Join,
     Leave,
     Send,
+    Fetch,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]

@@ -15,6 +15,18 @@ pub fn get_unix_timestamp() -> u64 {
     now.as_secs()
 }
 
+pub fn join_initial_room(app: &mut app::App) {
+    let com = TalkProtocol {
+        uuid: Uuid::new_v4(),
+        username: "Info".to_string(),
+        message: Some(format!("{} joined the room", app.username)),
+        action: Join,
+        room_id: app.room,
+        unixtime: get_unix_timestamp(),
+    };
+    app.tx.unbounded_send(com).unwrap();
+}
+
 pub fn parse(app: &mut app::App) {
     if app.input.starts_with("/") {
         app.input = app.input.trim_start_matches("/").trim().to_string();
@@ -66,24 +78,26 @@ fn parse_command(app: &mut app::App) {
 }
 
 fn parse_command_room_valid(app: &mut app::App, number: i32) -> (TalkProtocol, TalkProtocol) {
-    let leave_message = TalkProtocol {
-        uuid: Uuid::new_v4(),
-        username: "Info".to_string(),
-        message: Some(format!("{} changed to room {}", app.username, number)),
-        action: Leave,
-        room_id: app.room,
-        unixtime: get_unix_timestamp(),
-    };
+    let old_room = app.room;
     app.room = number;
-    let join_message = TalkProtocol {
-        uuid: Uuid::new_v4(),
-        username: "Info".to_string(),
-        message: Some(format!("{} joined the room", app.username)),
-        action: Join,
-        room_id: app.room,
-        unixtime: get_unix_timestamp(),
-    };
-    (leave_message, join_message)
+    (
+        TalkProtocol {
+            uuid: Uuid::new_v4(),
+            username: "Info".to_string(),
+            message: Some(format!("{} changed to room {}", app.username, number)),
+            action: Leave,
+            room_id: old_room,
+            unixtime: get_unix_timestamp(),
+        },
+        TalkProtocol {
+            uuid: Uuid::new_v4(),
+            username: "Info".to_string(),
+            message: Some(format!("{} joined the room", app.username)),
+            action: Join,
+            room_id: app.room,
+            unixtime: get_unix_timestamp(),
+        },
+    )
 }
 
 fn parse_command_room_invalid(app: &mut app::App, error: ParseIntError) -> TalkProtocol {

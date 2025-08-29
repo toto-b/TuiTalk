@@ -1,11 +1,11 @@
 use crate::app::{App, InputMode};
-use chrono::{Local, Utc, TimeZone};
+use chrono::{Local, TimeZone, Utc};
 use ratatui::{
     Frame,
     layout::{Constraint, Layout, Position},
     style::{Color, Modifier, Style, Stylize},
     text::{Line, Span, Text},
-    widgets::{Block, List, ListItem, Paragraph},
+    widgets::{Block, List, ListItem, Paragraph, Wrap},
 };
 
 pub fn draw(app: &mut App, frame: &mut Frame) {
@@ -65,19 +65,23 @@ pub fn draw(app: &mut App, frame: &mut Frame) {
     let start = full_messages.len().saturating_sub(height - 2 + app.scroll);
     let visible = &full_messages[start..];
 
-    let communication: Vec<ListItem> = visible
+    let communication: Vec<Line> = visible
         .iter()
         .map(|m| {
-            let content = Line::from(Span::raw(format!(
+            Line::from(Span::raw(format!(
                 "<{}> {}: {}",
-                Utc.timestamp_opt(m.unixtime as i64, 0).unwrap().with_timezone(&Local).format("%H:%M"),
+                Utc.timestamp_opt(m.unixtime as i64, 0)
+                    .unwrap()
+                    .with_timezone(&Local)
+                    .format("%H:%M"),
                 m.username,
                 m.message.clone().unwrap_or_default()
-            )));
-            ListItem::new(content)
+            )))
         })
         .collect();
 
-    let communication = List::new(communication).block(Block::bordered().title("Messages"));
+    let communication = Paragraph::new(communication)
+        .block(Block::bordered().title("Messages"))
+        .wrap(Wrap { trim: true });
     frame.render_widget(communication, messages_area);
 }

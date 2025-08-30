@@ -9,7 +9,7 @@ diesel::table! {
 diesel::table! {
     messages (id) {
         id -> Int4,
-        time -> Int4,
+        time -> BigInt,
         message -> Text,
         username -> Text,
         room_id -> Int4,

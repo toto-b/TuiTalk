@@ -2,12 +2,14 @@ mod wsserver;
 mod database;
 mod redis;
 
-use ::redis::RedisResult;
+use openssl_sys as _;
+use pq_sys as _;
 
 use dotenvy::dotenv;
+use anyhow::Result;
 
 #[tokio::main]
-async fn main() -> RedisResult<()> {
+async fn main() -> Result<()> {
     dotenv().ok(); 
 
     let server_handle = tokio::spawn(async move {

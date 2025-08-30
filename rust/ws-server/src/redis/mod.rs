@@ -3,9 +3,9 @@ use redis::cluster_async::ClusterConnection as ClusterConnectionAsync;
 use redis::{PushInfo, Value};
 use shared::TalkProtocol;
 use std::{env, sync::Arc};
-use tokio::sync::mpsc::UnboundedSender as TUnboundedSender;
-use tokio::sync::{Mutex as TMutex, mpsc::UnboundedReceiver as TUnboundedReceiver};
+use tokio::sync::{Mutex as TMutex, mpsc::{UnboundedSender as TUnboundedSender, UnboundedReceiver as TUnboundedReceiver}};
 use tokio_tungstenite::tungstenite::protocol::Message;
+use tokio::sync::oneshot::Sender;
 
 pub type SharedRedis = Arc<TMutex<ClusterConnection>>;
 
@@ -42,6 +42,7 @@ pub async fn create_redis_connection() -> Result<ClusterConnection, redis::Redis
     Ok(publish_conn)
 }
 
+#[allow(dead_code)]
 fn extract_binary_payload_from_pmessage(data: Vec<Value>) -> Option<Vec<u8>> {
     // PMessage data format: [pattern, channel, binary_payload]
     if data.len() >= 3 {
@@ -62,6 +63,7 @@ fn extract_binary_payload_from_message(data: Vec<Value>) -> Option<Vec<u8>> {
     None
 }
 
+#[allow(dead_code)]
 pub async fn subscribe_to_redis_pattern(tx: TUnboundedSender<Message>) {
     let r = create_redis_async_pubsub_connection().await;
     let (mut con, mut rx) = r.expect("Pubusb Connection");
@@ -88,9 +90,9 @@ pub async fn subscribe_to_redis_pattern(tx: TUnboundedSender<Message>) {
 
 pub async fn subscribe_to_redis(
     tx: TUnboundedSender<Message>,
-    mut room_id_receiver: TUnboundedReceiver<i32>,
+    mut room_id_receiver: TUnboundedReceiver<(i32, Sender<()>)>,
 ) {
-    println!("[SERVER-SUB] Subbing to redis");
+    println!("[REDIS] Subbing to redis");
 
     // create one persistent redis connection for all rooms
     let r = create_redis_async_pubsub_connection().await;
@@ -123,19 +125,20 @@ pub async fn subscribe_to_redis(
     let mut current_room: Option<String> = None;
 
     // listen on channel for room changes
-    while let Some(room_id) = room_id_receiver.recv().await {
+    while let Some((room_id, ack)) = room_id_receiver.recv().await {
         let channel = format!("{}", room_id);
 
         // unsubscribe from old room if there was one
         if let Some(old) = &current_room {
-            println!("[SERVER-SUB] Unsubscribing from {}", old);
+            println!("[REDIS] Unsubscribing from {}", old);
             let _ = con.sunsubscribe(old).await;
         }
 
         // subscribe to new room
-        println!("[SERVER-SUB] Subscribing to {}", channel);
+        println!("[REDIS] Subscribing to {}", channel);
         con.ssubscribe(&channel).await.expect("SSUBSCRIBE failed");
 
         current_room = Some(channel);
+        let _ = ack.send(());
     }
 }

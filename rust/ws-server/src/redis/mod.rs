@@ -3,10 +3,9 @@ use redis::cluster_async::ClusterConnection as ClusterConnectionAsync;
 use redis::{PushInfo, Value};
 use shared::TalkProtocol;
 use std::{env, sync::Arc};
-use tokio::sync::mpsc::UnboundedSender as TUnboundedSender;
-use tokio::sync::{Mutex as TMutex, mpsc::UnboundedReceiver as TUnboundedReceiver};
+use tokio::sync::{Mutex as TMutex, mpsc::{UnboundedSender as TUnboundedSender, UnboundedReceiver as TUnboundedReceiver}};
 use tokio_tungstenite::tungstenite::protocol::Message;
-use tokio::sync::{oneshot::{Receiver, Sender}};
+use tokio::sync::oneshot::Sender;
 
 pub type SharedRedis = Arc<TMutex<ClusterConnection>>;
 
@@ -43,6 +42,7 @@ pub async fn create_redis_connection() -> Result<ClusterConnection, redis::Redis
     Ok(publish_conn)
 }
 
+#[allow(dead_code)]
 fn extract_binary_payload_from_pmessage(data: Vec<Value>) -> Option<Vec<u8>> {
     // PMessage data format: [pattern, channel, binary_payload]
     if data.len() >= 3 {
@@ -63,6 +63,7 @@ fn extract_binary_payload_from_message(data: Vec<Value>) -> Option<Vec<u8>> {
     None
 }
 
+#[allow(dead_code)]
 pub async fn subscribe_to_redis_pattern(tx: TUnboundedSender<Message>) {
     let r = create_redis_async_pubsub_connection().await;
     let (mut con, mut rx) = r.expect("Pubusb Connection");

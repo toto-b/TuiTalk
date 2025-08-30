@@ -12,11 +12,12 @@ pub fn insert_user(conn: &mut PgConnection, user: NewUser) -> Result<usize, dies
         .execute(conn)
 }
 
+#[allow(dead_code)]
 pub fn get_users(conn: &mut PgConnection) -> Result<Vec<User>,diesel::result::Error> {
     users.load::<User>(conn)
 }
 
-
+#[allow(dead_code)]
 pub fn get_messages(conn: &mut PgConnection) -> QueryResult<Vec<Message>>  {
     messages.load::<Message>(conn)
 }

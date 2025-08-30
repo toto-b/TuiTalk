@@ -29,7 +29,7 @@ pub struct NewUser {
 #[diesel(check_for_backend(diesel::pg::Pg))]
 pub struct Message {
     pub id: i32,
-    pub time: i64, // i32 is purposely choose since diesel doesn't support u64
+    pub time: i64,
     pub username: String,
     pub message: String,
     pub room_id: i32,

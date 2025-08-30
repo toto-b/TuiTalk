@@ -17,7 +17,7 @@ use tokio::sync::{mpsc::unbounded_channel, oneshot};
 use tokio::{
     net::{TcpListener, TcpStream},
     runtime::Handle,
-}; // custom module
+};
 
 type SharedPostgres = Arc<TMutex<PgConnection>>;
 
@@ -35,7 +35,6 @@ pub async fn handle_connection(
     println!("WebSocket connection established: {}", addr);
 
     let (tx, mut rx) = unbounded_channel();
-    // let (room_tx, room_rx) = unbounded_channel();
     let (room_tx, room_rx) = unbounded_channel::<(i32, oneshot::Sender<()>)>();
 
     let (outgoing, incoming) = ws_stream.split();

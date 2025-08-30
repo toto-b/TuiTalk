@@ -110,7 +110,7 @@ impl App {
 
     pub fn run(mut self, mut terminal: DefaultTerminal) -> Result<()> {
         let tick_rate = Duration::from_millis(100);
-        self.join_initial_room();
+        command::join_initial_room(&mut self);
         loop {
             terminal.draw(|frame| self.draw(frame))?;
 

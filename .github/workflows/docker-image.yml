@@ -7,13 +7,25 @@ on:
     branches: [ "main" ]
 
 jobs:
-
   build:
-
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v4
-    - name: Build the Docker image
-      working-directory: ./rust
-      run: docker build . --file Dockerfile --tag tuitalk_backend:$(date +%s)
+      - uses: actions/checkout@v4
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build the Docker image
+        working-directory: ./path/to/dockerfile-dir
+        run: |
+          IMAGE_TAG=ghcr.io/${{ github.repository_owner }}/tuitalk_backend:$(date +%s)
+          docker build . --file Dockerfile --tag $IMAGE_TAG
+
+      - name: Push the Docker image
+        run: |
+          docker push $IMAGE_TAG

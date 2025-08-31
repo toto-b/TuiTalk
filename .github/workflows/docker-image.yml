@@ -20,12 +20,11 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build the Docker image
+      - name: Build and push Docker image
         working-directory: ./rust
         run: |
-          IMAGE_TAG=ghcr.io/${{ github.repository_owner }}/tuitalk_backend:$(date +%s)
+          IMAGE_TAG=ghcr.io/${{ github.repository_owner }}/my-image-name:$(date +%s)
+          echo "Building image $IMAGE_TAG"
           docker build . --file Dockerfile --tag $IMAGE_TAG
-
-      - name: Push the Docker image
-        run: |
           docker push $IMAGE_TAG
+

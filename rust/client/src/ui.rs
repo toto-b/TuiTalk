@@ -9,16 +9,16 @@ use ratatui::{
 };
 use uuid::Uuid;
 
-fn color_from_uuid(username: String, uuid: Uuid) -> Color {
+fn color_from_uuid(username: &String, uuid: Uuid) -> Color {
     if username == "Info" {
         Color::Yellow
     } else if username == "Error" {
         Color::Red
     } else {
         let bytes = uuid.as_bytes();
-        let r = bytes[1].saturating_add(64);
-        let g = bytes[2].saturating_add(64);
-        let b = bytes[3].saturating_add(64);
+        let r = bytes[0].saturating_add(64);
+        let g = bytes[1].saturating_add(64);
+        let b = bytes[2].saturating_add(64);
 
         Color::Rgb(r, g, b)
     }
@@ -94,7 +94,7 @@ pub fn draw(app: &mut App, frame: &mut Frame) {
 
             let username = Span::styled(
                 format!("{}: ", m.username),
-                Style::default().fg(color_from_uuid(m.username.clone(), m.uuid)),
+                Style::default().fg(color_from_uuid(&m.username, m.uuid)),
             );
 
             let message = Span::raw(m.message.clone().unwrap_or_default());

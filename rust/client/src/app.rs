@@ -45,18 +45,6 @@ impl App {
         }
     }
 
-    fn join_initial_room(&mut self) {
-        let com = TalkProtocol {
-            uuid: self.uuid,
-            username: "Info".to_string(),
-            message: Some(format!("{} joined the room", self.username)),
-            action: Join,
-            room_id: self.room,
-            unixtime: command::get_unix_timestamp(),
-        };
-        self.tx.unbounded_send(com).unwrap();
-    }
-
     fn move_cursor_left(&mut self) {
         let cursor_moved_left = self.character_index.saturating_sub(1);
         self.character_index = self.clamp_cursor(cursor_moved_left);
@@ -127,16 +115,7 @@ impl App {
                                 self.input_mode = InputMode::Editing;
                             }
                             KeyCode::Char('q') => {
-                                let message = format!("{} left the Chat", self.username);
-                                let com = TalkProtocol {
-                                    uuid: self.uuid,
-                                    username: "Info".to_string(),
-                                    message: Some(message.to_string()),
-                                    action: Leave,
-                                    room_id: self.room,
-                                    unixtime: command::get_unix_timestamp(),
-                                };
-                                self.tx.unbounded_send(com).unwrap();
+                                command::leave_room(&mut self);
                                 return Ok(());
                             }
                             KeyCode::Char('k') => {

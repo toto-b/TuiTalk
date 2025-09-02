@@ -27,6 +27,18 @@ pub fn join_initial_room(app: &mut app::App) {
     app.tx.unbounded_send(com).unwrap();
 }
 
+pub fn leave_room(app: &mut app::App) {
+    let com = TalkProtocol {
+        uuid: Uuid::new_v4(),
+        username: "Info".to_string(),
+        message: Some(format!("{} left the room", app.username)),
+        action: Join,
+        room_id: app.room,
+        unixtime: get_unix_timestamp(),
+    };
+    app.tx.unbounded_send(com).unwrap();
+}
+
 pub fn parse(app: &mut app::App) {
     if app.input.starts_with("/") {
         app.input = app.input.trim_start_matches("/").trim().to_string();

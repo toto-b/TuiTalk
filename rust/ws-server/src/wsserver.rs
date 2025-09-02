@@ -79,12 +79,12 @@ async fn handle_message(
 ) -> Result<()> {
     match &msg {
         TalkProtocol::JoinRoom { room_id, uuid, .. } => {
-            handle_join(*room_id, room_tx).await?;
+            handle_join(room_id, room_tx).await?;
             publish_message(shared_redis, &msg, room_id).await?;
             persist_user(pg_conn, room_id, uuid).await?;
         },
         TalkProtocol::LeaveRoom { room_id, uuid, .. } => {
-            handle_leave(*room_id, room_tx).await?;
+            handle_leave(room_id, room_tx).await?;
             publish_message(shared_redis, &msg, room_id).await?;
             delete_user(pg_conn, uuid).await?;
         },
@@ -93,7 +93,7 @@ async fn handle_message(
             persist_message(pg_conn, message).await?;
         },
         TalkProtocol::Fetch { room_id, limit, fetch_before } => {
-            handle_fetch(*room_id, *limit, *fetch_before, pg_conn).await?;
+            handle_fetch(room_id, limit, fetch_before, pg_conn).await?;
         },
         // Server -> Client events typically don't need handling here
         TalkProtocol::UserJoined { .. } |
@@ -111,33 +111,33 @@ async fn handle_message(
 }
 
 async fn handle_join(
-    room_id: i32,
+    room_id: &i32,
     room_tx: &UnboundedSender<(i32, oneshot::Sender<()>)>,
 ) -> Result<()> {
     let (ack_tx, ack_rx) = oneshot::channel();
-    room_tx.send((room_id, ack_tx))?;
+    room_tx.send((*room_id, ack_tx))?;
     ack_rx.await?;
     Ok(())
 }
 
 async fn handle_leave(
-    room_id: i32,
+    room_id: &i32,
     room_tx: &UnboundedSender<(i32, oneshot::Sender<()>)>,
 ) -> Result<()> {
     let (ack_tx, ack_rx) = oneshot::channel();
-    room_tx.send((room_id, ack_tx))?;
+    room_tx.send((*room_id, ack_tx))?;
     ack_rx.await?;
     Ok(())
 }
 
 async fn handle_fetch(
-    room_id: i32,
-    limit: i32,
-    fetch_before: u64,
+    room_id: &i32,
+    limit: &i32,
+    fetch_before: &u64,
     _pg_conn: &SharedPostgres,
 ) -> Result<()> {
     // Implement fetch logic
-    println!("Fetch requested for room {}: limit {}, before {}", room_id, limit, fetch_before);
+    println!("Fetch requested for room {}: limit {}, before {}", *room_id, *limit, *fetch_before);
     println!("Needs to be implemented TODO");
     Ok(())
 }

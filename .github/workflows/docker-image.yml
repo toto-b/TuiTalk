@@ -23,7 +23,7 @@ jobs:
       - name: Build and push Docker image
         working-directory: ./rust
         run: |
-          IMAGE_TAG=ghcr.io/itsanian/tuitalk_backend:$(date +%s)
+          IMAGE_TAG=ghcr.io/itsanian/tuitalk
           echo "Building image $IMAGE_TAG"
           docker build . --file Dockerfile --tag $IMAGE_TAG
           docker push $IMAGE_TAG

@@ -7,6 +7,22 @@ use ratatui::{
     text::{Line, Span, Text},
     widgets::{Block, List, ListItem, Paragraph, Wrap},
 };
+use uuid::Uuid;
+
+fn color_from_uuid(username: String, uuid: Uuid) -> Color {
+    if username == "Info" {
+        Color::Yellow
+    } else if username == "Error" {
+        Color::Red
+    } else {
+        let bytes = uuid.as_bytes();
+        let r = bytes[1].saturating_add(64);
+        let g = bytes[2].saturating_add(64);
+        let b = bytes[3].saturating_add(64);
+
+        Color::Rgb(r, g, b)
+    }
+}
 
 pub fn draw(app: &mut App, frame: &mut Frame) {
     let vertical = Layout::vertical([
@@ -68,15 +84,23 @@ pub fn draw(app: &mut App, frame: &mut Frame) {
     let communication: Vec<Line> = visible
         .iter()
         .map(|m| {
-            Line::from(Span::raw(format!(
-                "<{}> {}: {}",
+            let timestamp = Span::raw(format!(
+                "<{}> ",
                 Utc.timestamp_opt(m.unixtime as i64, 0)
                     .unwrap()
                     .with_timezone(&Local)
-                    .format("%H:%M"),
-                m.username,
-                m.message.clone().unwrap_or_default()
-            )))
+                    .format("%H:%M")
+            ));
+
+            let username = Span::styled(
+                format!("{}: ", m.username),
+                Style::default().fg(color_from_uuid(m.username.clone(), m.uuid)),
+            );
+
+            let message = Span::raw(m.message.clone().unwrap_or_default());
+
+            let content = Line::from(vec![timestamp, username, message]);
+            Line::from(content)
         })
         .collect();
 

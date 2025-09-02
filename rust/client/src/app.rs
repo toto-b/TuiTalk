@@ -4,11 +4,10 @@ use color_eyre::Result;
 use futures_channel::mpsc::UnboundedSender;
 use ratatui::DefaultTerminal;
 use ratatui::crossterm::event::{self, Event, KeyCode, KeyEventKind};
-use shared::{ClientAction::*, TalkProtocol};
 use std::sync::{Arc, Mutex};
-use std::thread::sleep;
 use std::time::{Duration, Instant};
 use uuid::Uuid;
+use shared::*;
 
 pub struct App {
     pub input: String,

@@ -7,50 +7,92 @@
       url = "github:numtide/treefmt-nix";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+    fenix = {
+      url = "github:nix-community/fenix";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+    flake-utils.url = "github:numtide/flake-utils";
   };
 
   outputs = {
     self,
     nixpkgs,
     treefmt-nix,
-  }: let
-    pkgs = import nixpkgs {system = "x86_64-linux";};
-  in {
-    devShells.x86_64-linux.default = pkgs.mkShell {
-      packages = with pkgs; [
-        rustc
-        cargo
-        trunk
-        rustfmt
-        clippy
-        bacon
-        rust-analyzer
-        lld_18
-        wasm-bindgen-cli
-        python3
-        wasm-pack
-        redis
-      ];
-    };
+    fenix,
+    flake-utils,
+    ...
+  }:
+    flake-utils.lib.eachDefaultSystem (
+      system: let
+        system = "x86_64-linux";
+        pkgs = import nixpkgs {inherit system;};
+      in
+        with pkgs; {
+          devShells.default = pkgs.mkShell {
+            packages = [
+              rustc
+              cargo
+              trunk
+              rustfmt
+              clippy
+              bacon
+              rust-analyzer
+              lld_18
+              wasm-bindgen-cli
+              python3
+              wasm-pack
+              redis
+            ];
+          };
 
-    formatter.x86_64-linux = treefmt-nix.lib.mkWrapper nixpkgs.legacyPackages.x86_64-linux {
-      projectRootFile = "flake.nix";
-      programs.nixpkgs-fmt.enable = true;
-      programs.rustfmt.enable = true;
-    };
+          formatter.x86_64-linux = treefmt-nix.lib.mkWrapper nixpkgs.legacyPackages.x86_64-linux {
+            projectRootFile = "flake.nix";
+            programs.nixpkgs-fmt.enable = true;
+            programs.rustfmt.enable = true;
+          };
 
-    packages.x86_64-linux.client = pkgs.rustPlatform.buildRustPackage {
-      pname = "client";
-      version = "0.1.0";
-      src = ./rust;
-      cargoLock.lockFile = ./rust/Cargo.lock;
+          packages = {
+            client = rustPlatform.buildRustPackage {
+              pname = "client";
+              version = "0.1.0";
+              src = ./rust;
+              cargoLock.lockFile = ./rust/Cargo.lock;
 
-      cargoBuildFlags = ["-p" "client"];
+              buildAndTestSubdir = "client";
+            };
 
-      nativeBuildInputs = with pkgs; [pkg-config perl];
-      buildInputs = with pkgs; [openssl];
-    };
+            ws-server = rustPlatform.buildRustPackage {
+              pname = "ws-server";
+              version = "0.1.0";
+              src = ./rust;
+              cargoLock.lockFile = ./rust/Cargo.lock;
+              buildAndTestSubdir = "ws-server";
+              nativeBuildInputs = [pkg-config perl];
+              buildInputs = [openssl];
+            };
 
-    packages.x86_64-linux.default = self.packages.x86_64-linux.client;
-  };
+            wasm-client = rustPlatform.buildRustPackage {
+              pname = "wasm-client";
+              version = "0.1.0";
+              src = ./rust;
+              cargoLock.lockFile = ./rust/Cargo.lock;
+              buildAndTestSubdir = "wasm-client";
+            };
+
+            default = self.packages.${system}.client;
+          };
+
+          apps = {
+            default = self.apps.${system}.client;
+            client = flake-utils.lib.mkApp {drv = self.packages.${system}.client;};
+            ws-server = flake-utils.lib.mkApp {drv = self.packages.${system}.ws-server;};
+            wasm-client = {
+              type = "app";
+              program = "${pkgs.writeShellScript "wasm-client-run" ''
+                exec ${pkgs.trunk}/bin/trunk serve -p 7777
+              ''}";
+            };
+          };
+        }
+    );
 }

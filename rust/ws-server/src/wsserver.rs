@@ -96,7 +96,7 @@ async fn handle_message(
             handle_join(room_id, room_tx).await?;
 
             let response = TalkProtocol::UserJoined {
-                user_id: *uuid,
+                uuid: *uuid,
                 username: username.clone(),
                 room_id: *room_id,
                 unixtime: *unixtime,
@@ -127,7 +127,7 @@ async fn handle_message(
             handle_leave(room_id, room_tx).await?;
 
             let response = TalkProtocol::UserLeft {
-                user_id: *uuid,
+                uuid: *uuid,
                 username: username.clone(),
                 room_id: *room_id,
                 unixtime: *unixtime,

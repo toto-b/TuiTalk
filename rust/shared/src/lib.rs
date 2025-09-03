@@ -20,8 +20,8 @@ pub enum TalkProtocol {
     LocalError { message: String },
 
     // Server -> Client Events
-    UserJoined { user_id: Uuid, username: String, room_id: i32, unixtime: u64 },
-    UserLeft { user_id: Uuid, username: String, room_id: i32, unixtime: u64  },
+    UserJoined { uuid: Uuid, username: String, room_id: i32, unixtime: u64 },
+    UserLeft { uuid: Uuid, username: String, room_id: i32, unixtime: u64  },
     UsernameChanged {uuid: Uuid, username: String, old_username: String, unixtime: u64},
     History { text: Vec<TalkProtocol> },
     Error { code: String, message: String },
@@ -52,8 +52,8 @@ impl TalkProtocol {
 
     pub fn from_i16(value: i16, room_id: i32, uuid: Uuid, username: String, unixtime: u64, message: String) -> Option<Self> {
         Some(match value {
-            0 => TalkProtocol::UserJoined { user_id: uuid, username, room_id, unixtime },
-            1 => TalkProtocol::UserLeft { user_id: uuid, username, room_id, unixtime },
+            0 => TalkProtocol::UserJoined { uuid, username, room_id, unixtime },
+            1 => TalkProtocol::UserLeft { uuid, username, room_id, unixtime },
             2 => TalkProtocol::UsernameChanged { uuid, username, old_username: message, unixtime },
             3 => TalkProtocol::Error { code: message.clone(), message },
             4 => TalkProtocol::PostMessage { message: TalkMessage { uuid, username, text: message, room_id, unixtime } },

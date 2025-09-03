@@ -184,17 +184,17 @@ pub fn draw(app: &mut App, frame: &mut Frame) {
             TalkProtocol::LocalError { message } => Some(return_local_error(message)),
             TalkProtocol::PostMessage { message } => Some(return_posted_message(message)),
             TalkProtocol::UserJoined {
-                user_id,
+                uuid,
                 username,
                 room_id,
                 unixtime,
-            } => Some(return_user_joined(*unixtime, username, user_id.clone())),
+            } => Some(return_user_joined(*unixtime, username, uuid.clone())),
             TalkProtocol::UserLeft {
-                user_id,
+                uuid,
                 username,
                 room_id,
                 unixtime,
-            } => Some(return_user_left(*unixtime, username, user_id.clone())),
+            } => Some(return_user_left(*unixtime, username, uuid.clone())),
             TalkProtocol::UsernameChanged {
                 uuid,
                 username,

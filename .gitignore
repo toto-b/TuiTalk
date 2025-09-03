@@ -9,3 +9,4 @@ rust/wasm-client/target-wasm/
 target
 .direnv
 .env
+result

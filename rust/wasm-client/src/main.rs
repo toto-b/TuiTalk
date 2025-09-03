@@ -107,16 +107,16 @@ pub fn app() -> Html {
         let message = message.clone();
         Callback::from(move |_| {
             if let Some(tx) = &*tx {
-                let msg = TalkProtocol {
-                    username: (*username).clone(),
-                    message: (*message).clone(),
-                    action: None,
-                    room_id: 0,
-                    unixtime: 0,
-                };
-                if let Err(e) = tx.unbounded_send(msg) {
-                    log::error!("Failed to send message: {:?}", e);
-                }
+                // let msg = TalkProtocol {
+                //     username: (*username).clone(),
+                //     message: (*message).clone(),
+                //     action: None,
+                //     room_id: 0,
+                //     unixtime: 0,
+                // };
+                // if let Err(e) = tx.unbounded_send(msg) {
+                //     log::error!("Failed to send message: {:?}", e);
+                // }
                 message.set(String::new()); // Clear input after sending
             }
         })
@@ -148,9 +148,9 @@ pub fn app() -> Html {
                 <ul>
                     {(*messages).iter().map(|msg| {
                     html! {
-                    <li key={msg.unixtime.to_string()}>
-                        <strong>{ &msg.username }</strong> { &msg.message }
-                    </li>
+                    // <li key={msg.unixtime.to_string()}>
+                    //     <strong>{ &msg.username }</strong> { &msg.message }
+                    // </li>
                     }
                     }).collect::<Html>()}
                 </ul>

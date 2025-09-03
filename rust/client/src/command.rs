@@ -35,7 +35,7 @@ pub fn leave_room(app: &mut app::App) -> TalkProtocol {
     TalkProtocol::LeaveRoom {
         room_id: app.room,
         uuid: app.uuid,
-        username: "Info".to_string(),
+        username: app.username.clone(),
         unixtime: get_unix_timestamp(),
     }
 }
@@ -69,6 +69,7 @@ fn parse_command(app: &mut app::App) {
             Ok(number) => {
                 let com = parse_command_room_valid(app, number);
                 app.tx.unbounded_send(com.0).unwrap();
+                app.communication.lock().unwrap().clear();
                 app.tx.unbounded_send(com.1).unwrap();
             }
             Err(error) => {
@@ -117,7 +118,7 @@ fn parse_invalid_command(app: &mut app::App) -> TalkProtocol {
     }
 }
 
-fn parse_command_fetch(app: &mut app::App, set_limit: i32) -> TalkProtocol {
+fn parse_command_fetch(app: &mut app::App, set_limit: i64) -> TalkProtocol {
     TalkProtocol::Fetch {
         room_id: app.room,
         limit: set_limit,

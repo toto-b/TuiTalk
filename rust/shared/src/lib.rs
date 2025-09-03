@@ -16,14 +16,14 @@ pub enum TalkProtocol {
     JoinRoom { room_id: i32, uuid: Uuid, username: String, unixtime: u64},
     LeaveRoom { room_id: i32, uuid: Uuid, username: String, unixtime: u64},
     ChangeName {uuid: Uuid, username: String, old_username: String, unixtime: u64},
-    Fetch { room_id: i32, limit: i32, fetch_before: u64},
+    Fetch { room_id: i32, limit: i64, fetch_before: u64},
     LocalError { message: String },
 
     // Server -> Client Events
-    UserJoined { user_id: Uuid, username: String, room_id: i32, unixtime: u64 },
-    UserLeft { user_id: Uuid, username: String, room_id: i32, unixtime: u64  },
+    UserJoined { uuid: Uuid, username: String, room_id: i32, unixtime: u64 },
+    UserLeft { uuid: Uuid, username: String, room_id: i32, unixtime: u64  },
     UsernameChanged {uuid: Uuid, username: String, old_username: String, unixtime: u64},
-    History { text: Vec<TalkMessage> },
+    History { text: Vec<TalkProtocol> },
     Error { code: String, message: String },
 
 
@@ -38,6 +38,27 @@ impl TalkProtocol {
 
     pub fn deserialize(bytes: &[u8]) -> Result<Self, bincode::Error> {
         bincode::deserialize(bytes)
+    }
+    pub fn to_i16(&self) -> Option<i16> {
+        match self {
+            TalkProtocol::UserJoined {..} => Some(0),
+            TalkProtocol::UserLeft {..} => Some(1),
+            TalkProtocol::UsernameChanged {..} => Some(2),
+            TalkProtocol::Error { .. } => Some(3),
+            TalkProtocol::PostMessage {..} => Some(4),
+            _ => None,
+        }
+    }
+
+    pub fn from_i16(value: i16, room_id: i32, uuid: Uuid, username: String, unixtime: u64, message: String) -> Option<Self> {
+        Some(match value {
+            0 => TalkProtocol::UserJoined { uuid, username, room_id, unixtime },
+            1 => TalkProtocol::UserLeft { uuid, username, room_id, unixtime },
+            2 => TalkProtocol::UsernameChanged { uuid, username, old_username: message, unixtime },
+            3 => TalkProtocol::Error { code: message.clone(), message },
+            4 => TalkProtocol::PostMessage { message: TalkMessage { uuid, username, text: message, room_id, unixtime } },
+            _ => return None,
+        })
     }
 }
 

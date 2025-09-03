@@ -1,6 +1,6 @@
 mod app;
-mod ui;
 mod command;
+mod ui;
 
 use crate::app::App;
 use futures_channel::mpsc::unbounded;
@@ -23,7 +23,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let com = Arc::clone(&communication);
     tokio::spawn(receiver_task(read, move |msg| {
-        com.lock().unwrap().push(msg);
+        match msg {
+            TalkProtocol::History { text } => {
+                com.lock().unwrap().splice(0..0, text);
+            }
+            _ => {
+                com.lock().unwrap().push(msg);
+            }
+        }
     }));
 
     color_eyre::install()?;

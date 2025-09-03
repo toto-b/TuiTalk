@@ -14,5 +14,6 @@ diesel::table! {
         username -> Text,
         room_id -> Int4,
         uuid -> Uuid,
+        protocol_type -> SmallInt,
     }
 }

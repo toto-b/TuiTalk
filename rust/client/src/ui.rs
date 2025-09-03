@@ -10,19 +10,113 @@ use ratatui::{
 use shared::*;
 use uuid::Uuid;
 
-fn color_from_uuid(username: &String, uuid: Uuid) -> Color {
-    if username == "Info" {
-        Color::Yellow
-    } else if username == "Error" {
-        Color::Red
-    } else {
-        let bytes = uuid.as_bytes();
-        let r = bytes[0].saturating_add(64);
-        let g = bytes[1].saturating_add(64);
-        let b = bytes[2].saturating_add(64);
+fn color_from_uuid(uuid: Uuid) -> Color {
+    let bytes = uuid.as_bytes();
+    let r = bytes[0].saturating_add(64);
+    let g = bytes[1].saturating_add(64);
+    let b = bytes[2].saturating_add(64);
 
-        Color::Rgb(r, g, b)
-    }
+    Color::Rgb(r, g, b)
+}
+
+fn return_server_error<'a>(message: &'a String, code: &'a String) -> Line<'a> {
+    let error = Span::styled(format!("Server Error"), Style::default().fg(Color::Red));
+    let code = Span::raw(code);
+    let space = Span::raw(": ".to_string());
+
+    let message = Span::raw(message);
+
+    let content = Line::from(vec![error, space, code, message]);
+    Line::from(content)
+}
+
+fn return_local_error(message: &String) -> Line {
+    let error = Span::styled(format!("Local Error"), Style::default().fg(Color::Red));
+    let space = Span::raw(": ".to_string());
+
+    let message = Span::raw(message);
+
+    let content = Line::from(vec![error, space, message]);
+    Line::from(content)
+}
+
+fn return_user_left(unixtime: u64, username: &String, uuid: Uuid) -> Line {
+    let timestamp = Span::raw(format!(
+        "<{}> ",
+        Utc.timestamp_opt(unixtime as i64, 0)
+            .unwrap()
+            .with_timezone(&Local)
+            .format("%H:%M")
+    ));
+
+    let info = Span::styled(format!("Info: "), Style::default().fg(Color::Yellow));
+    let username = Span::styled(username, Style::default().fg(color_from_uuid(uuid)));
+
+    let message = Span::raw("left the room");
+
+    let content = Line::from(vec![timestamp, info, username, message]);
+    Line::from(content)
+}
+
+fn return_user_joined(unixtime: u64, username: &String, uuid: Uuid) -> Line {
+    let timestamp = Span::raw(format!(
+        "<{}> ",
+        Utc.timestamp_opt(unixtime as i64, 0)
+            .unwrap()
+            .with_timezone(&Local)
+            .format("%H:%M")
+    ));
+
+    let info = Span::styled(format!("Info: "), Style::default().fg(Color::Yellow));
+
+    let message = Span::raw(format!("{} joined the room", username));
+
+    let content = Line::from(vec![timestamp, info, message]);
+    Line::from(content)
+}
+
+fn return_username_changed<'a>(
+    unixtime: u64,
+    username: &'a String,
+    old_username: &'a String,
+    uuid: Uuid,
+) -> Line<'a> {
+    let timestamp = Span::raw(format!(
+        "<{}> ",
+        Utc.timestamp_opt(unixtime as i64, 0)
+            .unwrap()
+            .with_timezone(&Local)
+            .format("%H:%M")
+    ));
+
+    let info = Span::styled("Info: ".to_string(), Style::default().fg(Color::Yellow));
+    let old_username = Span::styled(old_username, Style::default().fg(color_from_uuid(uuid)));
+
+    let message = Span::raw("changed his name to");
+    let username = Span::styled(username, Style::default().fg(color_from_uuid(uuid)));
+
+    let content = Line::from(vec![timestamp, info, old_username, message, username]);
+    Line::from(content)
+}
+
+fn return_posted_message(message: &TalkMessage) -> Line {
+    let timestamp = Span::raw(format!(
+        "<{}> ",
+        Utc.timestamp_opt(message.unixtime as i64, 0)
+            .unwrap()
+            .with_timezone(&Local)
+            .format("%H:%M")
+    ));
+
+    let username = Span::styled(
+        format!("{}: ", message.username),
+        Style::default().fg(color_from_uuid(message.uuid)),
+    );
+
+    let message = Span::raw(message.text.clone());
+
+    let content = Line::from(vec![timestamp, username, message]);
+    Line::from(content)
 }
 
 pub fn draw(app: &mut App, frame: &mut Frame) {
@@ -85,106 +179,32 @@ pub fn draw(app: &mut App, frame: &mut Frame) {
     let communication: Vec<Line> = visible
         .iter()
         .filter_map(|proto| match proto {
-            TalkProtocol::Error { code, message } => {
-                let error = Span::styled(format!("Error: "), Style::default().fg(Color::Red));
-
-                let code = Span::raw(code);
-                let message = Span::raw(message);
-
-                let content = Line::from(vec![error, code, message]);
-                Some(Line::from(content))
-            }
-            TalkProtocol::LocalError { message } => {
-                let error = Span::styled(format!("Error: "), Style::default().fg(Color::Red));
-
-                let message = Span::raw(message);
-
-                let content = Line::from(vec![error, message]);
-                Some(Line::from(content))
-            }
-            TalkProtocol::PostMessage { message } => {
-                let timestamp = Span::raw(format!(
-                    "<{}> ",
-                    Utc.timestamp_opt(message.unixtime as i64, 0)
-                        .unwrap()
-                        .with_timezone(&Local)
-                        .format("%H:%M")
-                ));
-
-                let username = Span::styled(
-                    format!("{}: ", message.username),
-                    Style::default().fg(color_from_uuid(&message.username, message.uuid)),
-                );
-
-                let message = Span::raw(message.text.clone());
-
-                let content = Line::from(vec![timestamp, username, message]);
-                Some(Line::from(content))
-            }
+            TalkProtocol::Error { code, message } => Some(return_server_error(message, code)),
+            TalkProtocol::LocalError { message } => Some(return_local_error(message)),
+            TalkProtocol::PostMessage { message } => Some(return_posted_message(message)),
             TalkProtocol::UserJoined {
                 user_id,
                 username,
                 room_id,
                 unixtime,
-            } => {
-                let timestamp = Span::raw(format!(
-                    "<{}> ",
-                    Utc.timestamp_opt(*unixtime as i64, 0)
-                        .unwrap()
-                        .with_timezone(&Local)
-                        .format("%H:%M")
-                ));
-
-                let info = Span::styled(format!("Info: "), Style::default().fg(Color::Yellow));
-
-                let message = Span::raw(format!("{} joined the room", username));
-
-                let content = Line::from(vec![timestamp, info, message]);
-                Some(Line::from(content))
-            }
+            } => Some(return_user_joined(*unixtime, username, user_id.clone())),
             TalkProtocol::UserLeft {
                 user_id,
                 username,
                 room_id,
                 unixtime,
-            } => {
-                let timestamp = Span::raw(format!(
-                    "<{}> ",
-                    Utc.timestamp_opt(*unixtime as i64, 0)
-                        .unwrap()
-                        .with_timezone(&Local)
-                        .format("%H:%M")
-                ));
-
-                let info = Span::styled(format!("Info: "), Style::default().fg(Color::Yellow));
-
-                let message = Span::raw(format!("{} left the room", username));
-
-                let content = Line::from(vec![timestamp, info, message]);
-                Some(Line::from(content))
-            }
+            } => Some(return_user_left(*unixtime, username, user_id.clone())),
             TalkProtocol::UsernameChanged {
                 uuid,
                 username,
                 old_username,
                 unixtime,
-            } => {
-                let timestamp = Span::raw(format!(
-                    "<{}> ",
-                    Utc.timestamp_opt(*unixtime as i64, 0)
-                        .unwrap()
-                        .with_timezone(&Local)
-                        .format("%H:%M")
-                ));
-
-                let info = Span::styled(format!("Info: "), Style::default().fg(Color::Yellow));
-
-                let message =
-                    Span::raw(format!("{} changed his name to {}", username, old_username));
-
-                let content = Line::from(vec![timestamp, info, message]);
-                Some(Line::from(content))
-            },
+            } => Some(return_username_changed(
+                *unixtime,
+                username,
+                old_username,
+                uuid.clone(),
+            )),
             _ => None,
         })
         .collect();

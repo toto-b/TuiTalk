@@ -114,7 +114,7 @@ impl App {
                                 self.input_mode = InputMode::Editing;
                             }
                             KeyCode::Char('q') => {
-                                command::leave_room(&mut self);
+                                command::quit_app(&mut self);
                                 return Ok(());
                             }
                             KeyCode::Char('k') => {

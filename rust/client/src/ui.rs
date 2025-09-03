@@ -52,7 +52,7 @@ fn return_user_left(unixtime: u64, username: &String, uuid: Uuid) -> Line {
     let info = Span::styled(format!("Info: "), Style::default().fg(Color::Yellow));
     let username = Span::styled(username, Style::default().fg(color_from_uuid(uuid)));
 
-    let message = Span::raw("left the room");
+    let message = Span::raw(" left the room");
 
     let content = Line::from(vec![timestamp, info, username, message]);
     Line::from(content)
@@ -68,10 +68,11 @@ fn return_user_joined(unixtime: u64, username: &String, uuid: Uuid) -> Line {
     ));
 
     let info = Span::styled(format!("Info: "), Style::default().fg(Color::Yellow));
+    let username = Span::styled(username, Style::default().fg(color_from_uuid(uuid)));
 
-    let message = Span::raw(format!("{} joined the room", username));
+    let message = Span::raw(" joined the room");
 
-    let content = Line::from(vec![timestamp, info, message]);
+    let content = Line::from(vec![timestamp, info, username, message]);
     Line::from(content)
 }
 
@@ -205,7 +206,7 @@ pub fn draw(app: &mut App, frame: &mut Frame) {
                 old_username,
                 uuid.clone(),
             )),
-            _ => None,
+            _ => Some(Line::from(Span::raw(format!("{:?}", proto)))),
         })
         .collect();
     let communication = Paragraph::new(communication)

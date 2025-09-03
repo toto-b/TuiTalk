@@ -1,7 +1,7 @@
 use crate::database::{
     connection::establish_connection,
     models::{NewMessage, NewUser},
-    queries::{delete_user_by_uuid, get_history, insert_message, insert_user},
+    queries::*,
 };
 use crate::redis::*;
 use anyhow::Result;
@@ -167,11 +167,34 @@ async fn handle_message(
             let response = TalkProtocol::History { text: messages };
             let _ = tx.send(Message::Binary(response.serialize().unwrap().into()));
         }
+        TalkProtocol::ChangeName {
+            uuid,
+            username,
+            unixtime,
+            old_username,
+        } => {
+            let response = TalkProtocol::UsernameChanged {
+                uuid: *uuid,
+                username: username.clone(),
+                old_username: old_username.clone(),
+                unixtime: *unixtime,
+            };
+
+            let room_id = {
+                let mut conn = pg_conn.lock().await;
+                get_room_id_by_uuid(&mut conn, *uuid)
+                    .ok()
+                    .and_then(|results| results.first().map(|r| r.room_id))
+            };
+
+            if let Some(room_id) = room_id {
+                publish_message(shared_redis, &response, &room_id).await?;
+            }
+        }
         // Server -> Client events typically don't need handling here
         TalkProtocol::UserJoined { .. }
         | TalkProtocol::UserLeft { .. }
         | TalkProtocol::History { .. }
-        | TalkProtocol::ChangeName { .. }
         | TalkProtocol::UsernameChanged { .. }
         | TalkProtocol::LocalError { .. }
         | TalkProtocol::Error { .. } => {

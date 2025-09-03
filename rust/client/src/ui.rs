@@ -93,7 +93,7 @@ fn return_username_changed<'a>(
     let info = Span::styled("Info: ".to_string(), Style::default().fg(Color::Yellow));
     let old_username = Span::styled(old_username, Style::default().fg(color_from_uuid(uuid)));
 
-    let message = Span::raw("changed his name to");
+    let message = Span::raw(" changed his name to ");
     let username = Span::styled(username, Style::default().fg(color_from_uuid(uuid)));
 
     let content = Line::from(vec![timestamp, info, old_username, message, username]);

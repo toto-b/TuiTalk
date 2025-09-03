@@ -2,21 +2,33 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
-pub enum ClientAction {
-    Join,
-    Leave,
-    Send,
-    Fetch,
+pub struct TalkMessage {
+    pub uuid: Uuid,
+    pub username: String,
+    pub text: String,
+    pub room_id: i32,
+    pub unixtime: u64
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
-pub struct TalkProtocol {
-    pub uuid: Uuid,
-    pub username: String,
-    pub message: Option<String>,
-    pub action: ClientAction,
-    pub room_id: i32,
-    pub unixtime: u64,
+pub enum TalkProtocol {
+    // Client -> Server Commands
+    JoinRoom { room_id: i32, uuid: Uuid, username: String, unixtime: u64},
+    LeaveRoom { room_id: i32, uuid: Uuid, username: String, unixtime: u64},
+    ChangeName {uuid: Uuid, username: String, old_username: String, unixtime: u64},
+    Fetch { room_id: i32, limit: i32, fetch_before: u64},
+    LocalError { message: String },
+
+    // Server -> Client Events
+    UserJoined { user_id: Uuid, username: String, room_id: i32, unixtime: u64 },
+    UserLeft { user_id: Uuid, username: String, room_id: i32, unixtime: u64  },
+    UsernameChanged {uuid: Uuid, username: String, old_username: String, unixtime: u64},
+    History { text: Vec<TalkMessage> },
+    Error { code: String, message: String },
+
+
+    // Server <-> Client
+    PostMessage { message: TalkMessage },
 }
 
 impl TalkProtocol {
@@ -148,9 +160,7 @@ pub mod wasm {
                         messages.set(current);
 
                         let _ = console_log::init_with_level(Level::Debug);
-                        if let Some(parsed_msg) = parsed.message {
-                            info!("Received bytes message: {}", parsed_msg);
-                        }
+                        info!("Received bytes message: {:?}", parsed);
                     }
                 }
                 Ok(Message::Text(text)) => {

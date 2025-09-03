@@ -11,7 +11,6 @@ pub struct TalkMessage {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
-#[serde(tag = "type")]
 pub enum TalkProtocol {
     // Client -> Server Commands
     JoinRoom { room_id: i32, uuid: Uuid, username: String, unixtime: u64},

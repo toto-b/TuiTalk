@@ -16,7 +16,7 @@ pub enum TalkProtocol {
     JoinRoom { room_id: i32, uuid: Uuid, username: String, unixtime: u64},
     LeaveRoom { room_id: i32, uuid: Uuid, username: String, unixtime: u64},
     ChangeName {uuid: Uuid, username: String, old_username: String, unixtime: u64},
-    Fetch { room_id: i32, limit: i32, fetch_before: u64},
+    Fetch { room_id: i32, limit: i64, fetch_before: u64},
     LocalError { message: String },
 
     // Server -> Client Events

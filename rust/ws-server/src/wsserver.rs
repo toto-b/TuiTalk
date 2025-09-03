@@ -77,6 +77,7 @@ async fn handle_message(
     shared_redis: &SharedRedis,
     pg_conn: &SharedPostgres,
 ) -> Result<()> {
+    println!("[SERVER] Received {:?}", msg);
     match &msg {
         TalkProtocol::JoinRoom { room_id, uuid, username, unixtime } => {
             handle_join(room_id, room_tx).await?;
@@ -87,9 +88,9 @@ async fn handle_message(
         },
         TalkProtocol::LeaveRoom { room_id, uuid, unixtime, username } => {
             handle_leave(room_id, room_tx).await?;
+
             let response = TalkProtocol::UserLeft { user_id: *uuid, username: username.clone(), room_id: *room_id, unixtime: *unixtime };
             publish_message(shared_redis, &response, room_id).await?;
-            publish_message(shared_redis, &msg, room_id).await?;
             delete_user(pg_conn, uuid).await?;
         },
         TalkProtocol::PostMessage { message } => {

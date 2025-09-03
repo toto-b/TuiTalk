@@ -210,7 +210,7 @@ pub fn draw(app: &mut App, frame: &mut Frame) {
         })
         .collect();
     let communication = Paragraph::new(communication)
-        .block(Block::bordered().title("Messages"))
+        .block(Block::bordered().title(format!(" Chatting in Room {} ", app.room)))
         .wrap(Wrap { trim: true });
     frame.render_widget(communication, messages_area);
 }

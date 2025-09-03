@@ -3,7 +3,7 @@ use diesel::associations::HasTable;
 use crate::database::models::{NewMessage, NewUser, Message ,User};
 use crate::database::schema::users::dsl::*;
 use crate::database::schema::users::dsl::uuid;
-use crate::database::schema::messages::{self, dsl::*};
+use crate::database::schema::messages::{self, dsl::*, dsl::room_id as msg_room_id};
 use ::uuid::Uuid;   
 
 pub fn insert_user(conn: &mut PgConnection, user: NewUser) -> Result<usize, diesel::result::Error> {
@@ -34,4 +34,18 @@ pub fn delete_user_by_uuid(
 ) -> Result<usize, diesel::result::Error> {
     diesel::delete(users.filter(uuid.eq(user_uuid)))
         .execute(conn)
+}
+
+pub fn get_history(
+    conn: &mut PgConnection,
+    requested_room_id: &i32,
+    limit: &i64,
+    fetch_before: &u64,
+) -> QueryResult<Vec<Message>> {
+    messages
+        .filter(msg_room_id.eq(*requested_room_id))
+        .filter(time.lt(*fetch_before as i64))
+        .limit(*limit)
+        .select(Message::as_select())
+        .load::<Message>(conn)
 }

@@ -1,7 +1,7 @@
 use crate::database::{
     connection::establish_connection,
-    models::{NewMessage, NewUser},
-    queries::{delete_user_by_uuid, insert_message, insert_user}
+    models::{NewMessage, NewUser, Message},
+    queries::{delete_user_by_uuid, insert_message, insert_user, get_history}
 };
 use crate::redis::*;
 use diesel::PgConnection;
@@ -19,7 +19,7 @@ use tokio::{
     net::{TcpListener, TcpStream},
     runtime::Handle,
 }; 
-use anyhow::{Result};
+use anyhow::{Context, Result};
 
 type SharedPostgres = Arc<TMutex<PgConnection>>;
 
@@ -78,13 +78,17 @@ async fn handle_message(
     pg_conn: &SharedPostgres,
 ) -> Result<()> {
     match &msg {
-        TalkProtocol::JoinRoom { room_id, uuid, .. } => {
+        TalkProtocol::JoinRoom { room_id, uuid, username, unixtime } => {
             handle_join(room_id, room_tx).await?;
-            publish_message(shared_redis, &msg, room_id).await?;
+
+            let response = TalkProtocol::UserJoined { user_id: *uuid, username: username.clone(), room_id: *room_id, unixtime: *unixtime };
+            publish_message(shared_redis, &response, room_id).await?;
             persist_user(pg_conn, room_id, uuid).await?;
         },
-        TalkProtocol::LeaveRoom { room_id, uuid, .. } => {
+        TalkProtocol::LeaveRoom { room_id, uuid, unixtime, username } => {
             handle_leave(room_id, room_tx).await?;
+            let response = TalkProtocol::UserLeft { user_id: *uuid, username: username.clone(), room_id: *room_id, unixtime: *unixtime };
+            publish_message(shared_redis, &response, room_id).await?;
             publish_message(shared_redis, &msg, room_id).await?;
             delete_user(pg_conn, uuid).await?;
         },
@@ -132,14 +136,13 @@ async fn handle_leave(
 
 async fn handle_fetch(
     room_id: &i32,
-    limit: &i32,
+    limit: &i64,
     fetch_before: &u64,
-    _pg_conn: &SharedPostgres,
-) -> Result<()> {
-    // Implement fetch logic
-    println!("Fetch requested for room {}: limit {}, before {}", *room_id, *limit, *fetch_before);
-    println!("Needs to be implemented TODO");
-    Ok(())
+    pg_conn: &SharedPostgres,
+) -> Result<Vec<Message>>  {
+    let mut conn = pg_conn.lock().await;
+    let history = get_history(&mut conn, room_id, limit, fetch_before)?;
+    Ok(history) 
 }
 
 // Helper functions for DB operations

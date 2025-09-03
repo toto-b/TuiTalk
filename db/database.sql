@@ -10,5 +10,6 @@ CREATE TABLE messages (
     message TEXT,
     username TEXT,
     room_id INTEGER,
-    uuid UUID
+    uuid UUID,
+    protocol_type SMALLINT
 );

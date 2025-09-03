@@ -34,6 +34,7 @@ pub struct Message {
     pub message: String,
     pub room_id: i32,
     pub uuid: Uuid,
+    pub protocol_type: i16,
 }
 
 #[derive(Insertable, Debug)]
@@ -45,4 +46,5 @@ pub struct NewMessage {
     pub message: String,
     pub room_id: i32,
     pub uuid: Uuid,
+    pub protocol_type: i16,
 }

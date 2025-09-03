@@ -1,25 +1,24 @@
 use crate::database::{
     connection::establish_connection,
-    models::{NewMessage, NewUser, Message},
-    queries::{delete_user_by_uuid, insert_message, insert_user, get_history}
+    models::{NewMessage, NewUser},
+    queries::{delete_user_by_uuid, get_history, insert_message, insert_user},
 };
 use crate::redis::*;
+use anyhow::Result;
 use diesel::PgConnection;
 use futures_util::{SinkExt, StreamExt, stream::TryStreamExt};
-use redis::{Commands};
-use shared::{
-    TalkMessage, TalkProtocol
-};
-use uuid::Uuid;
+use redis::Commands;
+use shared::{TalkMessage, TalkProtocol};
 use std::{env, net::SocketAddr, sync::Arc};
 use tokio::sync::Mutex as TMutex;
-use tokio::sync::{mpsc::unbounded_channel, oneshot };
 use tokio::sync::mpsc::UnboundedSender;
+use tokio::sync::{mpsc::unbounded_channel, oneshot};
 use tokio::{
     net::{TcpListener, TcpStream},
     runtime::Handle,
-}; 
-use anyhow::{Context, Result};
+};
+use tokio_tungstenite::tungstenite::Message;
+use uuid::Uuid;
 
 type SharedPostgres = Arc<TMutex<PgConnection>>;
 
@@ -40,14 +39,22 @@ pub async fn handle_connection(
     let (mut outgoing, incoming) = ws_stream.split();
 
     // Spawn Redis subscriber
-    tokio::spawn(subscribe_to_redis(tx, room_rx));
+    tokio::spawn(subscribe_to_redis(tx.clone(), room_rx));
 
     // Process incoming messages
     let message_handler = async {
         incoming
             .try_for_each(|msg| async {
-                let deserialize_msg: TalkProtocol = bincode::deserialize(&msg.into_data()).expect("deserializing");
-                let _ = handle_message(deserialize_msg, &room_tx, &shared_redis, &pg_conn).await;
+                let deserialize_msg: TalkProtocol =
+                    bincode::deserialize(&msg.into_data()).expect("deserializing");
+                let _ = handle_message(
+                    deserialize_msg,
+                    &room_tx,
+                    tx.clone(),
+                    &shared_redis,
+                    &pg_conn,
+                )
+                .await;
                 Ok(())
             })
             .await
@@ -74,43 +81,103 @@ pub async fn handle_connection(
 async fn handle_message(
     msg: TalkProtocol,
     room_tx: &UnboundedSender<(i32, oneshot::Sender<()>)>,
+    tx: UnboundedSender<Message>,
     shared_redis: &SharedRedis,
     pg_conn: &SharedPostgres,
 ) -> Result<()> {
     println!("[SERVER] Received {:?}", msg);
     match &msg {
-        TalkProtocol::JoinRoom { room_id, uuid, username, unixtime } => {
+        TalkProtocol::JoinRoom {
+            room_id,
+            uuid,
+            username,
+            unixtime,
+        } => {
             handle_join(room_id, room_tx).await?;
 
-            let response = TalkProtocol::UserJoined { user_id: *uuid, username: username.clone(), room_id: *room_id, unixtime: *unixtime };
+            let response = TalkProtocol::UserJoined {
+                user_id: *uuid,
+                username: username.clone(),
+                room_id: *room_id,
+                unixtime: *unixtime,
+            };
             publish_message(shared_redis, &response, room_id).await?;
             persist_user(pg_conn, room_id, uuid).await?;
-        },
-        TalkProtocol::LeaveRoom { room_id, uuid, unixtime, username } => {
+
+            let message_to_persist = TalkMessage {
+                uuid: *uuid,
+                username: username.clone(),
+                text: "".to_string(),
+                room_id: *room_id,
+                unixtime: *unixtime,
+            };
+            persist_message(
+                pg_conn,
+                &message_to_persist,
+                response.to_i16().expect("TalkProtocol type conversion"),
+            )
+            .await?;
+        }
+        TalkProtocol::LeaveRoom {
+            room_id,
+            uuid,
+            unixtime,
+            username,
+        } => {
             handle_leave(room_id, room_tx).await?;
 
-            let response = TalkProtocol::UserLeft { user_id: *uuid, username: username.clone(), room_id: *room_id, unixtime: *unixtime };
+            let response = TalkProtocol::UserLeft {
+                user_id: *uuid,
+                username: username.clone(),
+                room_id: *room_id,
+                unixtime: *unixtime,
+            };
             publish_message(shared_redis, &response, room_id).await?;
             delete_user(pg_conn, uuid).await?;
-        },
+
+            let message_to_persist = TalkMessage {
+                uuid: *uuid,
+                username: username.clone(),
+                text: "".to_string(),
+                room_id: *room_id,
+                unixtime: *unixtime,
+            };
+            persist_message(
+                pg_conn,
+                &message_to_persist,
+                response.to_i16().expect("TalkProtocol type conversion"),
+            )
+            .await?;
+        }
         TalkProtocol::PostMessage { message } => {
             publish_message(shared_redis, &msg, &message.room_id).await?;
-            persist_message(pg_conn, message).await?;
-        },
-        TalkProtocol::Fetch { room_id, limit, fetch_before } => {
-            handle_fetch(room_id, limit, fetch_before, pg_conn).await?;
-        },
+            persist_message(
+                pg_conn,
+                message,
+                msg.to_i16().expect("TalkProtocol type conversion"),
+            )
+            .await?;
+        }
+        TalkProtocol::Fetch {
+            room_id,
+            limit,
+            fetch_before,
+        } => {
+            let messages = handle_fetch(room_id, limit, fetch_before, pg_conn).await?;
+            let response = TalkProtocol::History { text: messages };
+            let _ = tx.send(Message::Binary(response.serialize().unwrap().into()));
+        }
         // Server -> Client events typically don't need handling here
-        TalkProtocol::UserJoined { .. } |
-        TalkProtocol::UserLeft { .. } |
-        TalkProtocol::History { .. } |
-        TalkProtocol::ChangeName { .. } |
-        TalkProtocol::UsernameChanged { .. } |
-        TalkProtocol::LocalError { .. } |
-        TalkProtocol::Error { .. } => {
+        TalkProtocol::UserJoined { .. }
+        | TalkProtocol::UserLeft { .. }
+        | TalkProtocol::History { .. }
+        | TalkProtocol::ChangeName { .. }
+        | TalkProtocol::UsernameChanged { .. }
+        | TalkProtocol::LocalError { .. }
+        | TalkProtocol::Error { .. } => {
             // These are usually sent from server to client, not received
             eprintln!("Unexpected server-to-client message received");
-        },
+        }
     }
     Ok(())
 }
@@ -140,31 +207,56 @@ async fn handle_fetch(
     limit: &i64,
     fetch_before: &u64,
     pg_conn: &SharedPostgres,
-) -> Result<Vec<Message>>  {
+) -> Result<Vec<TalkProtocol>> {
     let mut conn = pg_conn.lock().await;
     let history = get_history(&mut conn, room_id, limit, fetch_before)?;
-    Ok(history) 
+    let message_list: Vec<TalkProtocol> = history
+        .iter()
+        .map(|e| {
+            TalkProtocol::from_i16(
+                e.protocol_type,
+                e.room_id,
+                e.uuid,
+                e.username.clone(),
+                e.time as u64,
+                e.message.clone(),
+            )
+            .expect("Type conversion to Talkprotocol from DB")
+        })
+        .collect();
+    Ok(message_list)
 }
 
 // Helper functions for DB operations
-async fn persist_message(pg_conn: &SharedPostgres, msg: &TalkMessage) -> Result<()> {
+async fn persist_message(
+    pg_conn: &SharedPostgres,
+    msg: &TalkMessage,
+    protocol_type_message: i16,
+) -> Result<()> {
     let mut conn = pg_conn.lock().await;
-    insert_message(&mut conn, NewMessage {
-        room_id: msg.room_id,
-        message: msg.text.clone(),
-        time: msg.unixtime as i64,
-        uuid: msg.uuid,
-        username: msg.username.clone(),
-    })?;
+    insert_message(
+        &mut conn,
+        NewMessage {
+            room_id: msg.room_id,
+            message: msg.text.clone(),
+            time: msg.unixtime as i64,
+            uuid: msg.uuid,
+            username: msg.username.clone(),
+            protocol_type: protocol_type_message,
+        },
+    )?;
     Ok(())
 }
 
 async fn persist_user(pg_conn: &SharedPostgres, room_id: &i32, uuid: &Uuid) -> Result<()> {
     let mut conn = pg_conn.lock().await;
-    insert_user(&mut conn, NewUser {
-        uuid: *uuid,
-        room_id: *room_id
-    })?;
+    insert_user(
+        &mut conn,
+        NewUser {
+            uuid: *uuid,
+            room_id: *room_id,
+        },
+    )?;
     Ok(())
 }
 
@@ -174,7 +266,11 @@ async fn delete_user(pg_conn: &SharedPostgres, user_uuid: &Uuid) -> Result<()> {
     Ok(())
 }
 
-async fn publish_message(shared_redis: &SharedRedis, msg: &TalkProtocol, room_id: &i32) -> Result<()> {
+async fn publish_message(
+    shared_redis: &SharedRedis,
+    msg: &TalkProtocol,
+    room_id: &i32,
+) -> Result<()> {
     let mut conn = shared_redis.lock().await;
     let msg_json = msg.serialize()?;
     let _: () = conn.spublish(room_id, msg_json)?;

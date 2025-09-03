@@ -43,9 +43,9 @@ pub fn get_history(
     fetch_before: &u64,
 ) -> QueryResult<Vec<Message>> {
     messages
-        .filter(msg_room_id.eq(*requested_room_id))
-        .filter(time.lt(*fetch_before as i64))
+        .filter(msg_room_id.eq(*requested_room_id).and(time.lt(*fetch_before as i64)))
         .limit(*limit)
+        .order_by(time.asc())
         .select(Message::as_select())
         .load::<Message>(conn)
 }

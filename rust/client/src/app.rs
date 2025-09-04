@@ -4,10 +4,10 @@ use color_eyre::Result;
 use futures_channel::mpsc::UnboundedSender;
 use ratatui::DefaultTerminal;
 use ratatui::crossterm::event::{self, Event, KeyCode, KeyEventKind};
+use shared::*;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use uuid::Uuid;
-use shared::*;
 
 pub struct App {
     pub input: String,
@@ -116,6 +116,12 @@ impl App {
                             KeyCode::Char('q') => {
                                 command::quit_app(&mut self);
                                 return Ok(());
+                            }
+                            KeyCode::Char('g') => {
+                                self.scroll = self.communication.lock().unwrap().len();
+                            }
+                            KeyCode::Char('G') => {
+                                self.scroll = 0;
                             }
                             KeyCode::Char('k') => {
                                 if self.scroll + 1 < self.communication.lock().unwrap().len() {

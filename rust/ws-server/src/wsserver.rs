@@ -124,8 +124,6 @@ async fn handle_message(
             unixtime,
             username,
         } => {
-            handle_leave(room_id, room_tx).await?;
-
             let response = TalkProtocol::UserLeft {
                 uuid: *uuid,
                 username: username.clone(),
@@ -206,16 +204,6 @@ async fn handle_message(
 }
 
 async fn handle_join(
-    room_id: &i32,
-    room_tx: &UnboundedSender<(i32, oneshot::Sender<()>)>,
-) -> Result<()> {
-    let (ack_tx, ack_rx) = oneshot::channel();
-    room_tx.send((*room_id, ack_tx))?;
-    ack_rx.await?;
-    Ok(())
-}
-
-async fn handle_leave(
     room_id: &i32,
     room_tx: &UnboundedSender<(i32, oneshot::Sender<()>)>,
 ) -> Result<()> {

@@ -67,10 +67,10 @@ fn parse_command(app: &mut app::App) {
         app.input = app.input.trim_start_matches("room").trim().to_string();
         match app.input.parse::<i32>() {
             Ok(number) => {
-                let com = parse_command_room_valid(app, number);
-                app.tx.unbounded_send(com.0).unwrap();
+                let (leave, join) = parse_command_room_valid(app, number);
+                app.tx.unbounded_send(join).unwrap();
                 app.communication.lock().unwrap().clear();
-                app.tx.unbounded_send(com.1).unwrap();
+                app.tx.unbounded_send(leave).unwrap();
             }
             Err(error) => {
                 let com = parse_command_room_invalid(error);

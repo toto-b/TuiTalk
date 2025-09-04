@@ -41,7 +41,11 @@ pub fn leave_room(app: &mut app::App) -> TalkProtocol {
 }
 
 pub fn parse(app: &mut app::App) {
-    if app.input.starts_with("/") {
+    if app.input.len() == 0 {
+    } else if app.input.len() >= 250 {
+        let com = parse_message_too_long(app);
+        app.communication.lock().unwrap().push(com);
+    } else if app.input.starts_with("/") {
         app.input = app.input.trim_start_matches("/").trim().to_string();
         parse_command(app);
     } else {
@@ -61,16 +65,21 @@ pub fn parse(app: &mut app::App) {
 fn parse_command(app: &mut app::App) {
     if app.input.starts_with("name") {
         app.input = app.input.trim_start_matches("name ").trim().to_string();
-        let com = parse_command_name(app);
-        app.tx.unbounded_send(com).unwrap();
+        if app.input.len() <= 15 {
+            let com = parse_command_name(app);
+            app.tx.unbounded_send(com).unwrap();
+        } else {
+            let com = parse_message_too_long(app);
+            app.communication.lock().unwrap().push(com);
+        }
     } else if app.input.starts_with("room") {
         app.input = app.input.trim_start_matches("room").trim().to_string();
         match app.input.parse::<i32>() {
             Ok(number) => {
                 let com = parse_command_room_valid(app, number);
                 app.tx.unbounded_send(com.0).unwrap();
-                app.communication.lock().unwrap().clear();
                 app.tx.unbounded_send(com.1).unwrap();
+                app.communication.lock().unwrap().clear();
             }
             Err(error) => {
                 let com = parse_command_room_invalid(error);
@@ -79,9 +88,18 @@ fn parse_command(app: &mut app::App) {
         }
     } else if app.input == "clear" {
         app.communication.lock().unwrap().clear();
-    } else if app.input == "fetch" {
-        let com = parse_command_fetch(app, 50);
-        app.tx.unbounded_send(com).unwrap();
+    } else if app.input.starts_with("fetch") {
+        app.input = app.input.trim_start_matches("fetch").trim().to_string();
+        match app.input.parse::<i64>() {
+            Ok(number) => {
+                let com = parse_command_fetch_valid(app, number);
+                app.tx.unbounded_send(com).unwrap();
+            }
+            Err(error) => {
+                let com = parse_command_fetch_invalid(error);
+                app.communication.lock().unwrap().push(com);
+            }
+        }
     } else {
         let com = parse_invalid_command(app);
         app.communication.lock().unwrap().push(com);
@@ -118,7 +136,7 @@ fn parse_invalid_command(app: &mut app::App) -> TalkProtocol {
     }
 }
 
-fn parse_command_fetch(app: &mut app::App, set_limit: i64) -> TalkProtocol {
+fn parse_command_fetch_valid(app: &mut app::App, set_limit: i64) -> TalkProtocol {
     TalkProtocol::Fetch {
         room_id: app.room,
         limit: set_limit,
@@ -137,5 +155,17 @@ fn parse_command_fetch(app: &mut app::App, set_limit: i64) -> TalkProtocol {
                 _ => None,
             })
             .unwrap_or(get_unix_timestamp()),
+    }
+}
+
+fn parse_command_fetch_invalid(error: ParseIntError) -> TalkProtocol {
+    TalkProtocol::LocalError {
+        message: error.to_string(),
+    }
+}
+
+fn parse_message_too_long(app: &mut app::App) -> TalkProtocol {
+    TalkProtocol::LocalError {
+        message: "Input too long".to_string(),
     }
 }

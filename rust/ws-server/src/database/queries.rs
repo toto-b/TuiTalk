@@ -43,17 +43,20 @@ pub fn get_history(
     requested_room_id: &i32,
     limit: &i64,
     fetch_before: &u64,
-) -> QueryResult<Vec<Message>> {
-    messages
+) -> Result<Vec<Message>, diesel::result::Error> {
+    let mut result = messages
         .filter(
             msg_room_id
                 .eq(*requested_room_id)
                 .and(time.lt(*fetch_before as i64)),
         )
+        .order_by(time.desc())
         .limit(*limit)
-        .order_by(time.asc())
         .select(Message::as_select())
-        .load::<Message>(conn)
+        .load::<Message>(conn)?;
+
+    result.sort_by_key(|e| e.time);
+    Ok(result)
 }
 
 pub fn get_room_id_by_uuid(conn: &mut PgConnection, user_uuid: Uuid) -> QueryResult<Vec<User>> {

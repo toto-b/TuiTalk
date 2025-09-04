@@ -5,6 +5,9 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
+const MESSAGE_LENGTH: usize = 250;
+const USERNAME_LENGTH: usize = 15;
+
 pub fn get_unix_timestamp() -> u64 {
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -41,9 +44,9 @@ pub fn leave_room(app: &mut app::App) -> TalkProtocol {
 }
 
 pub fn parse(app: &mut app::App) {
-    if app.input.len() == 0 {
-    } else if app.input.len() >= 250 {
-        let com = parse_message_too_long(app);
+    if app.input.is_empty() {
+    } else if app.input.len() >= MESSAGE_LENGTH {
+        let com = parse_message_too_long();
         app.communication.lock().unwrap().push(com);
     } else if app.input.starts_with("/") {
         app.input = app.input.trim_start_matches("/").trim().to_string();
@@ -65,11 +68,11 @@ pub fn parse(app: &mut app::App) {
 fn parse_command(app: &mut app::App) {
     if app.input.starts_with("name") {
         app.input = app.input.trim_start_matches("name ").trim().to_string();
-        if app.input.len() <= 15 {
+        if app.input.len() <= USERNAME_LENGTH {
             let com = parse_command_name(app);
             app.tx.unbounded_send(com).unwrap();
         } else {
-            let com = parse_message_too_long(app);
+            let com = parse_message_too_long();
             app.communication.lock().unwrap().push(com);
         }
     } else if app.input.starts_with("room") {
@@ -164,7 +167,7 @@ fn parse_command_fetch_invalid(error: ParseIntError) -> TalkProtocol {
     }
 }
 
-fn parse_message_too_long(app: &mut app::App) -> TalkProtocol {
+fn parse_message_too_long() -> TalkProtocol {
     TalkProtocol::LocalError {
         message: "Input too long".to_string(),
     }

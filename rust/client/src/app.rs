@@ -137,10 +137,26 @@ impl App {
                                     self.auto_scroll = true;
                                 }
                             }
+                            KeyCode::Char('K') => {
+                                if self.scroll < self.max_scroll - 10 {
+                                    self.scroll += 10;
+                                } else {
+                                    self.scroll = self.max_scroll;
+                                }
+                                if self.scroll >= self.max_scroll {
+                                    self.auto_scroll = true;
+                                }
+                            }
                             KeyCode::Char('j') => {
                                 self.auto_scroll = false;
                                 if self.scroll > 0 {
                                     self.scroll -= 1;
+                                }
+                            }
+                            KeyCode::Char('J') => {
+                                self.auto_scroll = false;
+                                if self.scroll > 10 {
+                                    self.scroll -= 10;
                                 }
                             }
                             _ => {}

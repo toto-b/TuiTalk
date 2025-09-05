@@ -9,6 +9,8 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use uuid::Uuid;
 
+const FAST_SCROLL: usize = 10;
+
 pub struct App {
     pub input: String,
     pub character_index: usize,
@@ -137,10 +139,26 @@ impl App {
                                     self.auto_scroll = true;
                                 }
                             }
+                            KeyCode::Char('K') => {
+                                if self.max_scroll >= FAST_SCROLL && self.scroll < self.max_scroll - FAST_SCROLL {
+                                    self.scroll += FAST_SCROLL;
+                                } else {
+                                    self.scroll = self.max_scroll;
+                                }
+                                if self.scroll >= self.max_scroll {
+                                    self.auto_scroll = true;
+                                }
+                            }
                             KeyCode::Char('j') => {
                                 self.auto_scroll = false;
                                 if self.scroll > 0 {
                                     self.scroll -= 1;
+                                }
+                            }
+                            KeyCode::Char('J') => {
+                                self.auto_scroll = false;
+                                if self.scroll > FAST_SCROLL {
+                                    self.scroll -= FAST_SCROLL;
                                 }
                             }
                             _ => {}

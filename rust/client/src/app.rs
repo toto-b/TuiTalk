@@ -14,6 +14,8 @@ pub struct App {
     pub character_index: usize,
     pub input_mode: InputMode,
     pub scroll: usize,
+    pub max_scroll: usize,
+    pub auto_scroll: bool,
     pub communication: Arc<Mutex<Vec<TalkProtocol>>>,
     pub tx: UnboundedSender<TalkProtocol>,
     pub username: String,
@@ -36,6 +38,8 @@ impl App {
             input_mode: InputMode::Normal,
             communication: com,
             scroll: 0,
+            max_scroll: 0,
+            auto_scroll: true,
             character_index: 0,
             tx: transmit,
             username: "Client".to_string(),
@@ -118,17 +122,23 @@ impl App {
                                 return Ok(());
                             }
                             KeyCode::Char('g') => {
-                                self.scroll = self.communication.lock().unwrap().len();
+                                self.scroll = self.max_scroll;
+                                self.auto_scroll = true;
                             }
                             KeyCode::Char('G') => {
+                                self.auto_scroll = false;
                                 self.scroll = 0;
                             }
                             KeyCode::Char('k') => {
-                                if self.scroll + 1 < self.communication.lock().unwrap().len() {
+                                if self.scroll < self.max_scroll {
                                     self.scroll += 1;
+                                }
+                                if self.scroll >= self.max_scroll {
+                                    self.auto_scroll = true;
                                 }
                             }
                             KeyCode::Char('j') => {
+                                self.auto_scroll = false;
                                 if self.scroll > 0 {
                                     self.scroll -= 1;
                                 }

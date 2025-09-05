@@ -169,15 +169,8 @@ pub fn draw(app: &mut App, frame: &mut Frame) {
     }
 
     let full_messages = app.communication.lock().unwrap();
-    let height = messages_area.height as usize;
-    if app.scroll > full_messages.len().saturating_sub(height - 2) {
-        app.scroll = full_messages.len().saturating_sub(height - 2);
-    }
 
-    let start = full_messages.len().saturating_sub(height - 2 + app.scroll);
-    let visible = &full_messages[start..];
-
-    let communication: Vec<Line> = visible
+    let lines: Vec<Line> = full_messages
         .iter()
         .filter_map(|proto| match proto {
             TalkProtocol::Error { code, message } => Some(return_server_error(message, code)),
@@ -209,8 +202,24 @@ pub fn draw(app: &mut App, frame: &mut Frame) {
             _ => Some(Line::from(Span::raw(format!("{:?}", proto)))),
         })
         .collect();
-    let communication = Paragraph::new(communication)
-        .block(Block::bordered().title(format!(" Chatting in Room {} ", app.room)))
-        .wrap(Wrap { trim: true });
-    frame.render_widget(communication, messages_area);
+    let paragraph = Paragraph::new(lines).wrap(Wrap { trim: true });
+
+    let total_lines = paragraph.line_count(messages_area.width.into());
+    let visible_height = messages_area.height.saturating_sub(2) as usize;
+    app.max_scroll = total_lines.saturating_sub(visible_height);
+
+    if app.auto_scroll {
+        app.scroll = total_lines.saturating_sub(visible_height);
+    }
+
+    app.scroll = app
+        .scroll
+        .clamp(0, total_lines.saturating_sub(visible_height));
+
+    frame.render_widget(
+        paragraph
+            .block(Block::bordered().title(format!(" Chatting in Room {} ", app.room)))
+            .scroll((app.scroll as u16, 0)),
+        messages_area,
+    );
 }

@@ -39,7 +39,7 @@ fn return_server_error(message: &String, code: &String) -> Result<Line<'static>>
     let message = Span::raw(message.clone());
 
     let content = Line::from(vec![error, space, code, message]);
-    Ok(Line::from(content))
+    Ok(content)
 }
 
 fn return_local_error(message: &String) -> Result<Line> {
@@ -49,7 +49,7 @@ fn return_local_error(message: &String) -> Result<Line> {
     let message = Span::raw(message);
 
     let content = Line::from(vec![error, space, message]);
-    Ok(Line::from(content))
+    Ok(content)
 }
 
 fn return_user_left(unixtime: u64, username: &String, uuid: Uuid) -> Result<Line> {
@@ -60,7 +60,7 @@ fn return_user_left(unixtime: u64, username: &String, uuid: Uuid) -> Result<Line
     let message = Span::raw(" left the room");
 
     let content = Line::from(vec![timestamp, info, username, message]);
-    Ok(Line::from(content))
+    Ok(content)
 }
 
 fn return_user_joined(unixtime: u64, username: &String, uuid: Uuid) -> Result<Line> {
@@ -72,7 +72,7 @@ fn return_user_joined(unixtime: u64, username: &String, uuid: Uuid) -> Result<Li
     let message = Span::raw(" joined the room");
 
     let content = Line::from(vec![timestamp, info, username, message]);
-    Ok(Line::from(content))
+    Ok(content)
 }
 
 fn return_username_changed<'a>(
@@ -90,7 +90,7 @@ fn return_username_changed<'a>(
     let username = Span::styled(username.clone(), Style::default().fg(color_from_uuid(uuid)));
 
     let content = Line::from(vec![timestamp, info, old_username, message, username]);
-    Ok(Line::from(content))
+    Ok(content)
 }
 
 fn return_posted_message(message: &TalkMessage) -> Result<Line> {
@@ -104,7 +104,7 @@ fn return_posted_message(message: &TalkMessage) -> Result<Line> {
     let message = Span::raw(message.text.clone());
 
     let content = Line::from(vec![timestamp, username, message]);
-    Ok(Line::from(content))
+    Ok(content)
 }
 
 pub fn draw(app: &mut App, frame: &mut Frame) {

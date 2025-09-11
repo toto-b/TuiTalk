@@ -12,6 +12,7 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
     flake-utils.url = "github:numtide/flake-utils";
+    rust-overlay.url = "github:oxalica/rust-overlay";
   };
 
   outputs = {
@@ -19,18 +20,20 @@
     nixpkgs,
     treefmt-nix,
     fenix,
+    rust-overlay,
     flake-utils,
     ...
   }:
     flake-utils.lib.eachDefaultSystem (
       system: let
         system = "x86_64-linux";
-        pkgs = import nixpkgs {inherit system;};
+        overlays = [ (import rust-overlay) ];
+        pkgs = import nixpkgs {inherit system overlays;};
       in
         with pkgs; {
           devShells.default = pkgs.mkShell {
             packages = [
-              rustc
+              rust-bin.nightly.latest.default
               cargo
               trunk
               rustfmt

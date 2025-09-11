@@ -10,6 +10,7 @@ use std::time::{Duration, Instant};
 use uuid::Uuid;
 
 const FAST_SCROLL: usize = 10;
+const DEFAULT_SCROLL: usize = 1;
 
 pub struct App {
     pub input: String,
@@ -133,7 +134,7 @@ impl App {
                             }
                             KeyCode::Char('k') => {
                                 if self.scroll < self.max_scroll {
-                                    self.scroll += 1;
+                                    self.scroll += DEFAULT_SCROLL;
                                 }
                                 if self.scroll >= self.max_scroll {
                                     self.auto_scroll = true;
@@ -152,13 +153,15 @@ impl App {
                             KeyCode::Char('j') => {
                                 self.auto_scroll = false;
                                 if self.scroll > 0 {
-                                    self.scroll -= 1;
+                                    self.scroll -= DEFAULT_SCROLL;
                                 }
                             }
                             KeyCode::Char('J') => {
                                 self.auto_scroll = false;
                                 if self.scroll > FAST_SCROLL {
                                     self.scroll -= FAST_SCROLL;
+                                } else {
+                                    self.scroll = 0;
                                 }
                             }
                             _ => {}

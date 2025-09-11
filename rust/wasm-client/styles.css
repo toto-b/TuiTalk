@@ -1,0 +1,105 @@
+.chat-client {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 20px;
+    font-family: Arial, sans-serif;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.chat-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    flex-shrink: 0;
+}
+
+.user-info {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+    flex-shrink: 0;
+}
+
+.messages {
+    flex: 1;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    padding: 10px;
+    overflow-y: auto;
+    margin-bottom: 20px;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+
+.message {
+    margin-bottom: 10px;
+    padding: 8px;
+    border-radius: 4px;
+    background-color: #f5f5f5;
+    display: flex;
+    flex-direction: column;
+    max-width: 80%;
+}
+
+.message.own {
+    align-self: flex-end;
+    background-color: #007acc;
+    color: white;
+}
+
+.message.other {
+    align-self: flex-start;
+}
+
+.message-header {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 4px;
+    font-size: 0.9em;
+}
+
+.username {
+    font-weight: bold;
+    color: #007acc;
+}
+
+.message.own .username {
+    color: white;
+}
+
+.time {
+    color: #666;
+    font-size: 0.8em;
+}
+
+.message.own .time {
+    color: rgba(255, 255, 255, 0.8);
+}
+
+.message-text {
+    word-wrap: break-word;
+}
+
+.system-message {
+    color: #666;
+    font-style: italic;
+    margin-bottom: 10px;
+    text-align: center;
+    font-size: 0.9em;
+}
+
+.error-message {
+    color: #d32f2f;
+    margin-bottom: 10px;
+    text-align: center;
+}
+
+.input-area {
+    display: flex;
+    gap: 10px;
+    flex-shrink: 0;
+}

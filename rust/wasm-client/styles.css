@@ -12,94 +12,71 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 20px;
-    flex-shrink: 0;
+    margin-bottom: 15px;
+    padding-bottom: 10px;
+    border-bottom: 2px solid #007acc;
+}
+
+.messages-container {
+    flex: 1;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    overflow: hidden;
+    margin-bottom: 15px;
+    display: flex;
+    flex-direction: column;
+}
+
+.messages {
+    flex: 1;
+    padding: 15px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    max-height: 400px; /* Fixed height for scrolling */
+    background-color: #f9f9f9;
+}
+
+/* Remove the margin from individual messages since we have gap now */
+.message {
+    padding: 10px;
+    border-radius: 8px;
+    max-width: 80%;
 }
 
 .user-info {
     display: flex;
     gap: 10px;
-    margin-bottom: 20px;
-    flex-shrink: 0;
-}
-
-.messages {
-    flex: 1;
-    border: 1px solid #ccc;
-    border-radius: 4px;
-    padding: 10px;
-    overflow-y: auto;
-    margin-bottom: 20px;
-    display: flex;
-    flex-direction: column;
-    min-height: 0;
-}
-
-.message {
-    margin-bottom: 10px;
-    padding: 8px;
-    border-radius: 4px;
-    background-color: #f5f5f5;
-    display: flex;
-    flex-direction: column;
-    max-width: 80%;
-}
-
-.message.own {
-    align-self: flex-end;
-    background-color: #007acc;
-    color: white;
-}
-
-.message.other {
-    align-self: flex-start;
-}
-
-.message-header {
-    display: flex;
-    justify-content: space-between;
-    margin-bottom: 4px;
-    font-size: 0.9em;
-}
-
-.username {
-    font-weight: bold;
-    color: #007acc;
-}
-
-.message.own .username {
-    color: white;
-}
-
-.time {
-    color: #666;
-    font-size: 0.8em;
-}
-
-.message.own .time {
-    color: rgba(255, 255, 255, 0.8);
-}
-
-.message-text {
-    word-wrap: break-word;
-}
-
-.system-message {
-    color: #666;
-    font-style: italic;
-    margin-bottom: 10px;
-    text-align: center;
-    font-size: 0.9em;
-}
-
-.error-message {
-    color: #d32f2f;
-    margin-bottom: 10px;
-    text-align: center;
+    margin-bottom: 15px;
 }
 
 .input-area {
     display: flex;
     gap: 10px;
-    flex-shrink: 0;
+}
+
+.connection-controls {
+    margin-top: 15px;
+    display: flex;
+    gap: 10px;
+}
+
+/* Ensure the messages area is properly scrollable */
+.messages::-webkit-scrollbar {
+    width: 6px;
+}
+
+.messages::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 3px;
+}
+
+.messages::-webkit-scrollbar-thumb {
+    background: #ccc;
+    border-radius: 3px;
+}
+
+.messages::-webkit-scrollbar-thumb:hover {
+    background: #aaa;
 }

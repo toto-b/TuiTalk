@@ -7,7 +7,9 @@ use shared::{TalkMessage, TalkProtocol};
 use uuid::Uuid;
 use wasm_bindgen_futures::js_sys;
 use yew::prelude::*;
-
+use web_sys::HtmlElement;
+use gloo_utils::document;
+use web_sys::wasm_bindgen::JsCast;
 pub struct ChatClient {
     ws_sender: Option<UnboundedSender<TalkProtocol>>,
     messages: Vec<TalkProtocol>,
@@ -18,7 +20,6 @@ pub struct ChatClient {
     uuid: Uuid,
 }
 
-// Update your Msg enum and callbacks
 pub enum Msg {
     Connect,
     Disconnect,
@@ -47,7 +48,10 @@ impl Component for ChatClient {
     }
 
     fn update(&mut self, ctx: &Context<Self>, msg: Self::Message) -> bool {
-
+         if let Some(messages_container) = document().get_element_by_id("messages-container") {
+            let messages_container = messages_container.dyn_into::<HtmlElement>().unwrap();
+            messages_container.set_scroll_top(messages_container.scroll_height());
+        }
         match msg {
             Msg::Connect => {
                 if self.connected {
@@ -174,7 +178,6 @@ impl Component for ChatClient {
         }
     }
 
-    // Update the view method
     fn view(&self, ctx: &Context<Self>) -> Html {
         let on_connect = ctx.link().callback(|_: MouseEvent| Msg::Connect);
         let on_disconnect = ctx.link().callback(|_: MouseEvent| Msg::Disconnect);
@@ -251,32 +254,31 @@ impl Component for ChatClient {
 impl ChatClient {
     fn render_message(&self, msg: &TalkProtocol) -> Html {
         match msg {
-            TalkProtocol::PostMessage { message } => html! {
-                <div class="message">
-                    <span class="username">{&message.username}</span>
-                    <span class="text">{&message.text}</span>
-                    <span class="time">{Self::format_time(message.unixtime)}</span>
-                </div>
-            },
-            TalkProtocol::UserJoined {
-                username, room_id, ..
-            } => html! {
+            TalkProtocol::PostMessage { message } => {
+                let is_own_message = message.uuid == self.uuid;
+                let message_class = if is_own_message { "message own" } else { "message other" };
+                
+                html! {
+                    <div class={message_class}>
+                        <div class="message-header">
+                            <span class="username">{&message.username}</span>
+                            <span class="time">{Self::format_time(message.unixtime)}</span>
+                        </div>
+                        <div class="message-text">{&message.text}</div>
+                    </div>
+                }
+            }
+            TalkProtocol::UserJoined { username, room_id, .. } => html! {
                 <div class="system-message">
                     {format!("{} joined room {}", username, room_id)}
                 </div>
             },
-            TalkProtocol::UserLeft {
-                username, room_id, ..
-            } => html! {
+            TalkProtocol::UserLeft { username, room_id, .. } => html! {
                 <div class="system-message">
                     {format!("{} left room {}", username, room_id)}
                 </div>
             },
-            TalkProtocol::UsernameChanged {
-                username,
-                old_username,
-                ..
-            } => html! {
+            TalkProtocol::UsernameChanged { username, old_username, .. } => html! {
                 <div class="system-message">
                     {format!("{} changed name to {}", old_username, username)}
                 </div>
@@ -295,4 +297,3 @@ impl ChatClient {
         format!("{}:{}", date.get_hours(), date.get_minutes())
     }
 }
-

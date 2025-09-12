@@ -9,6 +9,9 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use uuid::Uuid;
 
+const FAST_SCROLL: usize = 10;
+const DEFAULT_SCROLL: usize = 1;
+
 pub struct App {
     pub input: String,
     pub character_index: usize,
@@ -94,14 +97,14 @@ impl App {
     }
 
     fn submit_message(&mut self) {
-        command::parse(self);
+        let _ = command::parse(self);
         self.input.clear();
         self.reset_cursor();
     }
 
     pub fn run(mut self, mut terminal: DefaultTerminal) -> Result<()> {
         let tick_rate = Duration::from_millis(100);
-        command::join_initial_room(&mut self);
+        let _ = command::join_initial_room(&mut self);
         loop {
             terminal.draw(|frame| self.draw(frame))?;
 
@@ -118,7 +121,7 @@ impl App {
                                 self.input_mode = InputMode::Editing;
                             }
                             KeyCode::Char('q') => {
-                                command::quit_app(&mut self);
+                                let _ = command::quit_app(&mut self);
                                 return Ok(());
                             }
                             KeyCode::Char('g') => {
@@ -131,7 +134,17 @@ impl App {
                             }
                             KeyCode::Char('k') => {
                                 if self.scroll < self.max_scroll {
-                                    self.scroll += 1;
+                                    self.scroll += DEFAULT_SCROLL;
+                                }
+                                if self.scroll >= self.max_scroll {
+                                    self.auto_scroll = true;
+                                }
+                            }
+                            KeyCode::Char('K') => {
+                                if self.max_scroll >= FAST_SCROLL && self.scroll < self.max_scroll - FAST_SCROLL {
+                                    self.scroll += FAST_SCROLL;
+                                } else {
+                                    self.scroll = self.max_scroll;
                                 }
                                 if self.scroll >= self.max_scroll {
                                     self.auto_scroll = true;
@@ -140,7 +153,15 @@ impl App {
                             KeyCode::Char('j') => {
                                 self.auto_scroll = false;
                                 if self.scroll > 0 {
-                                    self.scroll -= 1;
+                                    self.scroll -= DEFAULT_SCROLL;
+                                }
+                            }
+                            KeyCode::Char('J') => {
+                                self.auto_scroll = false;
+                                if self.scroll > FAST_SCROLL {
+                                    self.scroll -= FAST_SCROLL;
+                                } else {
+                                    self.scroll = 0;
                                 }
                             }
                             _ => {}

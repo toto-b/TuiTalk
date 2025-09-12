@@ -97,14 +97,14 @@ impl App {
     }
 
     fn submit_message(&mut self) {
-        command::parse(self);
+        let _ = command::parse(self);
         self.input.clear();
         self.reset_cursor();
     }
 
     pub fn run(mut self, mut terminal: DefaultTerminal) -> Result<()> {
         let tick_rate = Duration::from_millis(100);
-        command::join_initial_room(&mut self);
+        let _ = command::join_initial_room(&mut self);
         loop {
             terminal.draw(|frame| self.draw(frame))?;
 
@@ -121,7 +121,7 @@ impl App {
                                 self.input_mode = InputMode::Editing;
                             }
                             KeyCode::Char('q') => {
-                                command::quit_app(&mut self);
+                                let _ = command::quit_app(&mut self);
                                 return Ok(());
                             }
                             KeyCode::Char('g') => {

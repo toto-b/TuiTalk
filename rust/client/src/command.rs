@@ -71,7 +71,7 @@ pub fn parse(app: &mut app::App) -> Result<()> {
         app.tx.unbounded_send(com?)?;
     } else if app.input.starts_with("/") {
         app.input = app.input.trim_start_matches("/").trim().to_string();
-        parse_command(app);
+        let _ = parse_command(app);
     } else {
         let com = TalkProtocol::PostMessage {
             message: TalkMessage {

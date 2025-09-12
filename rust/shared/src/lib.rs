@@ -136,18 +136,9 @@ pub mod wasm {
     use futures_channel::mpsc::UnboundedReceiver;
     use futures_util::SinkExt;
     use futures_util::StreamExt;
-    // use futures_util::lock::Mutex;
     use futures_util::stream::{SplitSink, SplitStream};
     use gloo_net::websocket::Message;
     use gloo_net::websocket::futures::WebSocket;
-    use gloo_utils::errors::JsError;
-    use log::Level;
-    use log::info;
-    use yew::prelude::*;
-
-    pub fn connect_websocket(url: &str) -> Result<WebSocket, JsError> {
-        WebSocket::open(url)
-    }
 
     pub async fn sender_task(
         mut rx: UnboundedReceiver<TalkProtocol>,
@@ -156,41 +147,41 @@ pub mod wasm {
         while let Some(msg) = rx.next().await {
             match bincode::serialize(&msg) {
                 Ok(bin) => {
-                    if let Err(_e) = write.send(Message::Bytes(bin)).await {
+                    if let Err(e) = write.send(Message::Bytes(bin)).await {
+                        log::error!("WebSocket send error: {:?}", e);
                         break;
                     }
                 }
-                Err(e) => panic!("Sending message failed {}", e),
+                Err(e) => {
+                    log::error!("Serialization error: {:?}", e);
+                }
             }
         }
-
-        println!("Sender task ended");
+        log::info!("Sender task ended");
     }
 
     pub async fn receiver_task(
         mut read: SplitStream<WebSocket>,
-        messages: UseStateHandle<Vec<TalkProtocol>>,
+        on_message: impl FnMut(TalkProtocol) + 'static,
     ) {
-        let messages = messages.clone();
+        let mut callback = on_message;
         while let Some(msg) = read.next().await {
             match msg {
                 Ok(Message::Bytes(bin)) => {
                     if let Ok(parsed) = TalkProtocol::deserialize(&bin) {
-                        let mut current = (*messages).clone();
-                        current.push(parsed.clone());
-                        messages.set(current);
-
-                        let _ = console_log::init_with_level(Level::Debug);
-                        info!("Received bytes message: {:?}", parsed);
+                        callback(parsed);
                     }
                 }
                 Ok(Message::Text(text)) => {
-                    // Optional: Handle text messages if you expect them
-                    println!("Received text message: {}", text);
+                    log::info!("Received text message: {}", text);
                 }
-                Err(_e) => (),
+                Err(e) => {
+                    log::error!("WebSocket error: {:?}", e);
+                    break;
+                }
             }
         }
+        log::info!("Receiver task ended");
     }
 }
 

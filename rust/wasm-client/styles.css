@@ -1,0 +1,82 @@
+.chat-client {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 20px;
+    font-family: Arial, sans-serif;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.chat-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+    padding-bottom: 10px;
+    border-bottom: 2px solid #007acc;
+}
+
+.messages-container {
+    flex: 1;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    overflow: hidden;
+    margin-bottom: 15px;
+    display: flex;
+    flex-direction: column;
+}
+
+.messages {
+    flex: 1;
+    padding: 15px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    max-height: 400px; /* Fixed height for scrolling */
+    background-color: #f9f9f9;
+}
+
+/* Remove the margin from individual messages since we have gap now */
+.message {
+    padding: 10px;
+    border-radius: 8px;
+    max-width: 80%;
+}
+
+.user-info {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 15px;
+}
+
+.input-area {
+    display: flex;
+    gap: 10px;
+}
+
+.connection-controls {
+    margin-top: 15px;
+    display: flex;
+    gap: 10px;
+}
+
+/* Ensure the messages area is properly scrollable */
+.messages::-webkit-scrollbar {
+    width: 6px;
+}
+
+.messages::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 3px;
+}
+
+.messages::-webkit-scrollbar-thumb {
+    background: #ccc;
+    border-radius: 3px;
+}
+
+.messages::-webkit-scrollbar-thumb:hover {
+    background: #aaa;
+}
